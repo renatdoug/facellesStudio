@@ -20,6 +20,9 @@ __pycache__/
 **/output/
 **/assets/generated/
 
+# Front-end (a pasta dist/ compilada É versionada: assim não é preciso ter Node para usar)
+**/node_modules/
+
 # Sistema
 .DS_Store
 Thumbs.db

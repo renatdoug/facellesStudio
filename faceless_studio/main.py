@@ -53,10 +53,19 @@ def load_script(path):
         raise StudioError(f'Roteiro não encontrado: {path}')
     except json.JSONDecodeError as e:
         raise StudioError(f'Roteiro com JSON inválido (linha {e.lineno}, coluna {e.colno}): {e.msg}')
+    return validate_script(data)
+
+
+def validate_script(data):
+    """Valida o conteúdo de um roteiro já carregado (usado também pela interface web)."""
+    if not isinstance(data, dict):
+        raise StudioError('O roteiro precisa ser um objeto JSON.')
     scenes = data.get('scenes')
     if not isinstance(scenes, list) or not scenes:
         raise StudioError('O roteiro precisa ter uma lista "scenes" com pelo menos uma cena.')
     for n, s in enumerate(scenes, 1):
+        if not isinstance(s, dict):
+            raise StudioError(f'A cena {n} precisa ser um objeto.')
         if not str(s.get('narration', '')).strip():
             raise StudioError(f'A cena {n} está sem "narration".')
         if s.get('transition', 'cut') not in ('cut', 'fade'):

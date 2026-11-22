@@ -102,6 +102,48 @@ python -m unittest -v
 
 Os testes de imagem usam um servidor local que imita as APIs: não precisam de internet nem gastam créditos.
 
+## Interface web (v0.5)
+
+No Windows, execute `setup.bat` **uma vez** e depois dê duplo clique em
+`abrir_studio.bat`: o programa abre no navegador em `http://127.0.0.1:8765`
+(só acessível neste computador). Mantenha a janela preta aberta enquanto usa;
+feche-a para encerrar. Em outro sistema: `python web.py`.
+
+Na tela: a barra lateral lista canais e roteiros; no centro ficam as **cenas**
+(com miniatura), a **galeria** de imagens (com "gerar de novo" por cena), o
+player da **prévia** e do **vídeo final**; à direita, o **editor da cena**
+(tipo, título, narração, prompt, itens da lista). Alterações são salvas com
+`Ctrl+S` (o roteiro anterior vira `.json.bak`) e salvas automaticamente antes de
+gerar. Botões do topo: **Gerar imagens → Prévia de 2 cenas → Gerar vídeo**, com
+barra de progresso, log e cancelamento. **Chaves de API** grava no `.env` do
+canal e nunca mostra o valor de volta. O front-end já vem compilado em
+`webui/frontend/dist`; só é preciso Node para alterá-lo
+(`cd webui/frontend && npm install && npm run build`).
+
+A interface não mexe na geração: chama o `main.py` com os mesmos parâmetros do
+terminal. Testes da interface: `pip install -r requirements-dev.txt` e `pytest`.
+
+## Janela simples (v0.4.0, Tkinter)
+
+Continua disponível em `abrir_studio_simples.bat` (`gui.py`), com o mesmo fluxo
+em botões, sem editor de cenas nem player.
+
+Na janela: (1) selecione o canal/roteiro, ou crie um canal novo; (2) escolha
+um fornecedor de imagens (ou mantenha o configurado no JSON); (3) clique em
+**Gerar imagens**, confira **Ver imagens**; (4) clique em **Prévia de 2 cenas**
+e **Abrir prévia**; (5) clique em **Gerar vídeo completo** e **Abrir vídeo**.
+
+Os canais são procurados prioritariamente em `../canais/`, isto é, numa
+pasta irmã da instalação `faceless_studio`. O programa também reconhece
+projetos antigos em `faceless_studio/canais/`, caso existam, sem duplicá-los.
+**Novo canal** cria um roteiro inicial editável. **Procurar JSON** permite usar
+qualquer roteiro em outra pasta. O arquivo `.env` de cada canal é editado
+localmente pelo botão **Configurar API (.env)**: não o compartilhe.
+
+`gui.py` não muda a geração de imagens, narração ou montagem: ela chama
+`main.py` com os mesmos parâmetros que seriam usados no terminal. A prévia
+vai para `output/preview.mp4` e o vídeo final para `output/video_final.mp4`.
+
 ## Limitações
 
 - As integrações com OpenAI, Gemini, Pollinations e ComfyUI foram testadas contra APIs simuladas. Na primeira execução real, rode com `--images-only` e, se algo falhar, a mensagem de erro mostra a resposta da API.

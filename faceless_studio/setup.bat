@@ -14,7 +14,7 @@ if errorlevel 1 (
 where ffmpeg >nul 2>nul
 if errorlevel 1 (
     echo FFmpeg nao encontrado no PATH.
-    echo Baixe a build "full" em https://www.gyan.dev/ffmpeg/builds/, extraia e adicione
+    echo Baixe a build "essentials" em https://www.gyan.dev/ffmpeg/builds/, extraia e adicione
     echo a pasta "bin" dela as Variaveis de Ambiente do Windows ^(PATH^).
     pause
     exit /b 1

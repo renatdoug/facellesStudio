@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.5.0 — interface web
+
+- `web.py` + `webui/`: servidor local (FastAPI, só `127.0.0.1`) e front-end React/TypeScript. Abre no navegador pelo `abrir_studio.bat`.
+- Cenas com miniatura, linha do tempo (duração estimada), editor por cena (tipo, título, destaque, narração, prompt, itens; número/gráfico/comparação/citação em JSON), reordenar/duplicar/excluir.
+- Galeria de imagens com aviso de "desatualizada" quando o prompt muda e "gerar de novo" por cena.
+- Player integrado para prévia e vídeo final; progresso por cena, log e cancelamento (encerra o ffmpeg junto).
+- Chaves de API por canal pelo navegador (gravadas no `.env`, nunca exibidas). Aviso quando falta a chave do fornecedor escolhido.
+- Salvar mantém uma cópia `.json.bak`; o roteiro é validado antes de gravar. Observação: salvar reformata o JSON (indentação padrão).
+- Proteções do servidor local: só aceita `Host` local e rejeita `Origin` de outros sites; só serve arquivos de `assets/generated` e `output`.
+- `main.py`: validação do roteiro extraída para `validate_script()` (comportamento igual), reaproveitada pela interface.
+- A janela Tkinter da v0.4 virou `abrir_studio_simples.bat`. Novos: `requirements-dev.txt`, 10 testes da API (total: 37).
+- Pendente: "Criar projeto com IA" (roteiro gerado a partir de um tema).
+
+## v0.4.0 — interface gráfica (Windows)
+
+- `gui.py`: interface Tkinter sem dependências pip adicionais, com seleção de canal e roteiro JSON.
+- Botões de geração de imagens, prévia e vídeo final, escolha de fornecedor, regeneração de cenas e logs em tempo real.
+- Criação de novo canal, abertura de roteiro e `.env`, folha de revisão e vídeo final.
+- `abrir_studio.bat`: inicia a interface com o Python do ambiente virtual após `setup.bat`.
+- Cancelar na interface encerra também o `ffmpeg` iniciado pelo render (árvore de processos).
+- `setup.bat`: a mensagem de erro agora indica que a build "essentials" do FFmpeg basta.
+- Motor de renderização v0.3.2 mantido inalterado; interface ainda não validada com as APIs reais.
+
 ## v0.3.2
 
 Correções de uma segunda revisão:
