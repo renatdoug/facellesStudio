@@ -102,6 +102,20 @@ python -m unittest -v
 
 Os testes de imagem usam um servidor local que imita as APIs: não precisam de internet nem gastam créditos.
 
+## Vídeo como fundo (v0.6)
+
+Além de imagem parada com zoom, uma cena pode usar um **clipe de vídeo** como fundo:
+
+```json
+{"title": "UTI", "narration": "…", "video": "assets/media/uti.mp4", "video_start": 4, "video_end": 12}
+```
+
+- O clipe é recortado para 16:9 sem barras e **o áudio original é descartado** (só a narração e a trilha tocam). Legendas, `callouts` e `overlay_title` ficam por cima.
+- `video_start`/`video_end` (segundos) escolhem o trecho; ambos são opcionais.
+- Se o trecho for **mais curto** que a narração, ele se repete em loop; se for **mais longo**, é cortado quando a fala termina. Dica: escolha trechos de pelo menos a duração da fala para evitar a repetição.
+- Na interface web: tipo de cena **Vídeo** → *Escolher ou importar…* (biblioteca de vídeos do canal, em `assets/media`, reaproveitável em qualquer roteiro) e **▶ Prévia desta cena** para conferir uma cena sem renderizar o vídeo todo.
+- Use só vídeos que você tenha direito de usar (seus, ou de bancos com licença adequada). Os arquivos de `assets/media` não vão para o Git.
+
 ## Interface web (v0.5)
 
 No Windows, execute `setup.bat` **uma vez** e depois dê duplo clique em

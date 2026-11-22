@@ -7,13 +7,13 @@ import Sidebar from './components/Sidebar'
 import Stage, { type View } from './components/Stage'
 import Timeline from './components/Timeline'
 import { detectLayout, duplicateScene, fmtTime, newScene } from './scenes'
-import type { Channel, Job, Meta, SceneInfo, Script, ScriptState } from './types'
+import type { Channel, Job, LibraryItem, Meta, SceneInfo, Script, ScriptState, VideoInfo } from './types'
 
 const KEY_FOR: Record<string, [string, string]> = {
   gemini: ['GEMINI_API_KEY', 'Gemini'],
   openai: ['OPENAI_API_KEY', 'OpenAI'],
 }
-const MODE_LABEL = { images: 'imagens', preview: 'prévia', render: 'vídeo' } as const
+const MODE_LABEL = { images: 'imagens', preview: 'prévia', render: 'vídeo', scene: 'prévia da cena' } as const
 
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v))
 const remember = (k: string, v: string) => {
@@ -31,6 +31,8 @@ export default function App() {
   const [baseline, setBaseline] = useState('')
   const [selected, setSelected] = useState(0)
   const [view, setView] = useState<View>('scene')
+  const [previewKind, setPreviewKind] = useState<'general' | 'scene'>('general')
+  const [picked, setPicked] = useState<Record<string, LibraryItem>>({}) // vídeos escolhidos e ainda não salvos
   const [job, setJob] = useState<Job | null>(null)
   const [logs, setLogs] = useState<string[]>([])
   const [showLog, setShowLog] = useState(false)
@@ -109,7 +111,11 @@ export default function App() {
           if (snap.channel === channel && snap.script === scriptName) {
             const s = await api.state(snap.channel, snap.script)
             setState(s) // não mexe no rascunho: só atualiza imagens e arquivos gerados
-            if (snap.status === 'done') setView(snap.mode === 'images' ? 'gallery' : snap.mode === 'preview' ? 'preview' : 'final')
+            if (snap.status === 'done') {
+              setView(snap.mode === 'images' ? 'gallery' : snap.mode === 'render' ? 'final' : 'preview')
+              if (snap.mode === 'scene') setPreviewKind('scene')
+              if (snap.mode === 'preview') setPreviewKind('general')
+            }
           }
           notify(snap.status === 'done' ? `Pronto: ${MODE_LABEL[snap.mode]} concluído.`
             : snap.status === 'cancelled' ? 'Produção cancelada.' : 'A produção terminou com erro — veja o log.',
@@ -171,11 +177,11 @@ export default function App() {
     } catch (e) { notify((e as Error).message, 'err') }
   }
 
-  const run = async (mode: 'images' | 'preview' | 'render', regen = '') => {
+  const run = async (mode: 'images' | 'preview' | 'render' | 'scene', regen = '', sceneNo?: number) => {
     if (!draft || busy) return
     if (dirty && !(await save())) return
     try {
-      await api.startJob({ channel, script: scriptName, mode, provider: provider || null, regen, strict, no_voice: noVoice })
+      await api.startJob({ channel, script: scriptName, mode, provider: provider || null, regen, strict, no_voice: noVoice, scene: sceneNo ?? null })
       offset.current = 0
       setLogs([])
       setJob(null)
@@ -197,17 +203,27 @@ export default function App() {
       const id = String(s.id || String(i + 1).padStart(2, '0'))
       const server = state?.scenes.find((x) => x.id === id)
       const layout = detectLayout(s)
+      let video: VideoInfo | null = null
+      if (layout === 'video') {
+        const ref = typeof s.video === 'string' ? s.video : null
+        const lib = ref ? picked[ref] : undefined
+        if (!ref) video = { path: null, exists: false, in_library: false }
+        else if (server?.video?.path === ref) video = server.video
+        else if (lib) video = { path: ref, exists: true, in_library: true, name: lib.name, duration: lib.duration, url: lib.url, thumb: lib.thumb }
+        else video = { path: ref, exists: null, in_library: false }
+      }
       const image = layout === 'image' && server?.image
         ? { ...server.image, stale: server.image.kind === 'ai' ? server.image.prompt !== s.prompt : false }
         : null
-      return { index: i + 1, id, layout, seconds: server?.seconds ?? 0, image }
+      return { index: i + 1, id, layout, seconds: server?.seconds ?? 0, image, video }
     })
-  }, [draft, state])
+  }, [draft, state, picked])
 
   const effectiveProvider = provider || draft?.images?.provider || 'pollinations'
   const needsKey = KEY_FOR[effectiveProvider]
   const missingKey = needsKey && !state?.keys[needsKey[0]]
   const imageScenes = infos.filter((i) => i.layout === 'image').length
+  const videoProblems = infos.filter((i) => i.layout === 'video' && (!i.video?.path || i.video.exists === false))
   const scene = draft?.scenes[selected]
   const percent = Math.round((job?.percent ?? 0) * 100)
 
@@ -250,6 +266,11 @@ export default function App() {
             <button className="ghost" onClick={() => setSettings(true)}>Configurar</button></div>
         )}
 
+        {videoProblems.length > 0 && (
+          <div className="banner">{videoProblems.length === 1 ? `Cena ${videoProblems[0].index}` : `Cenas ${videoProblems.map((i) => i.index).join(', ')}`}:
+            {' '}falta escolher o vídeo (ou o arquivo não foi encontrado). A renderização vai parar nessa cena.</div>
+        )}
+
         {job && (
           <div className={'progress ' + job.status}>
             <div className="bar-outer"><div className="bar-inner" style={{ width: `${percent}%` }} /></div>
@@ -269,10 +290,15 @@ export default function App() {
               onDelete={(i) => { if (confirm('Excluir esta cena?')) { edit((d) => { d.scenes.splice(i, 1) }); setSelected(Math.max(0, i - 1)) } }} />
             <Stage view={view} setView={setView} scene={scene} info={infos[selected]} scenes={draft.scenes} infos={infos}
                    preview={state?.outputs.preview ?? null} final={state?.outputs.final ?? null} busy={busy}
+                   scenePreview={state?.outputs.scenes[String(selected + 1)] ?? null} previewKind={previewKind}
+                   setPreviewKind={setPreviewKind} onScenePreview={(n) => void run('scene', '', n)}
                    onRegen={(index) => void run('images', String(index))} onSelect={(i) => { setSelected(i); setView('scene') }} />
             <aside className="props">
-              <Inspector scene={scene} layout={infos[selected]?.layout ?? 'card'}
-                         onChange={(s) => edit((d) => { d.scenes[selected] = s })} />
+              <Inspector scene={scene} layout={infos[selected]?.layout ?? 'card'} channel={channel}
+                         video={infos[selected]?.video ?? null}
+                         narrationSeconds={String(scene.narration ?? '').split(/\s+/).filter(Boolean).length / 2.5 + 0.8}
+                         onChange={(s) => edit((d) => { d.scenes[selected] = s })}
+                         onPickVideo={(item) => setPicked((m) => ({ ...m, [`assets/media/${item.name}`]: item }))} />
             </aside>
           </div>
         ) : (

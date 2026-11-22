@@ -157,18 +157,28 @@ def fit_16x9(source, w, h):
     return im.crop((x, y, x + w, y + h))
 
 
-def finish_photo(im, darken_top=False):
-    """Escurece a base (e opcionalmente o topo) para a legenda e o título ficarem legíveis."""
-    w, h = im.size
+def _shade_mask(w, h, darken_top=False):
     shade = Image.new('L', (1, 256))
     for y in range(256):
         t = y / 255
         bottom = max(0.0, (t - 0.62) / 0.38) ** 1.4 * 0.70
         top = max(0.0, (0.30 - t) / 0.30) ** 1.4 * 0.55 if darken_top else 0.0
         shade.putpixel((0, y), int(255 * max(bottom, top)))
-    mask = shade.resize((w, h), Image.Resampling.BICUBIC)
+    return shade.resize((w, h), Image.Resampling.BICUBIC)
+
+
+def finish_photo(im, darken_top=False):
+    """Escurece a base (e opcionalmente o topo) para a legenda e o título ficarem legíveis."""
+    w, h = im.size
     black = Image.new('RGB', (w, h), (0, 0, 0))
-    return Image.composite(black, im, mask)
+    return Image.composite(black, im, _shade_mask(w, h, darken_top))
+
+
+def shade_overlay(w, h, darken_top=False):
+    """Mesmo escurecimento de finish_photo, como camada RGBA para sobrepor a um vídeo."""
+    layer = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    layer.putalpha(_shade_mask(w, h, darken_top))
+    return layer
 
 
 def contact_sheet(items, dest, thumb_w=480, cols=3, font_path=None):

@@ -1,11 +1,14 @@
 import type { Scene } from './types'
 
-export const CONTENT_KEYS = ['image', 'prompt', 'items', 'number', 'chart', 'compare', 'quote'] as const
+export const CONTENT_KEYS = ['image', 'prompt', 'video', 'video_start', 'video_end', 'items', 'number',
+  'chart', 'compare', 'quote'] as const
 
-export interface Kind { id: string; label: string; hint: string }
+export interface Kind { id: string; label: string; hint: string; soon?: boolean }
 
 export const KINDS: Kind[] = [
   { id: 'image', label: 'Imagem', hint: 'Ilustração gerada por IA (ou arquivo seu)' },
+  { id: 'video', label: 'Vídeo', hint: 'Clipe seu como fundo, com a narração e as legendas por cima' },
+  { id: 'ai_video', label: 'Vídeo IA', hint: 'Em breve: transformar a imagem gerada em um clipe animado', soon: true },
   { id: 'list', label: 'Lista', hint: 'Itens que surgem conforme a narração' },
   { id: 'number', label: 'Número', hint: 'Valor em destaque com contagem' },
   { id: 'chart', label: 'Gráfico', hint: 'Barras ou linha' },
@@ -18,6 +21,7 @@ export const kindLabel = (layout: string) => KINDS.find((k) => k.id === layout)?
 
 const SKELETON: Record<string, Scene> = {
   image: { prompt: 'descreva a imagem desta cena' },
+  video: { layout: 'video' }, // o arquivo é escolhido depois; ao escolher, "layout" deixa de ser necessário
   list: { items: [{ key: 'A', text: 'Primeiro item' }, { key: 'B', text: 'Segundo item' }] },
   number: { number: { value: 100, label: 'descrição do número', source: '' } },
   chart: {
@@ -69,6 +73,7 @@ export function duplicateScene(scene: Scene, existing: Scene[]): Scene {
 /** Espelha layouts.detect_layout() do Python, para o rascunho ainda não salvo. */
 export function detectLayout(scene: Scene): string {
   if (scene.layout) return scene.layout
+  if (scene.video) return 'video'
   if (scene.image || scene.prompt) return 'image'
   for (const [key, name] of [['chart', 'chart'], ['number', 'number'], ['items', 'list'],
     ['compare', 'compare'], ['quote', 'quote']] as const) {

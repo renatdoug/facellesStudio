@@ -73,6 +73,14 @@ def validate_script(data):
         if s.get('motion', 'auto') not in ('auto',) + video.MOTIONS:
             raise StudioError(f'Cena {n}: "motion" deve ser auto, ' + ', '.join(video.MOTIONS) + '.')
         layouts.detect_layout(s)  # valida "layout"
+        for key in ('video_start', 'video_end'):
+            if s.get(key) not in (None, '') and (isinstance(s[key], bool) or not isinstance(s[key], (int, float))
+                                                 or s[key] < 0):
+                raise StudioError(f'Cena {n}: "{key}" deve ser um número de segundos (0 ou mais).')
+        if s.get('video_end') not in (None, '') and s['video_end'] <= (s.get('video_start') or 0):
+            raise StudioError(f'Cena {n}: "video_end" precisa ser maior que "video_start".')
+        if s.get('video') is not None and not isinstance(s['video'], str):
+            raise StudioError(f'Cena {n}: "video" deve ser o caminho de um arquivo de vídeo.')
     return data
 
 
@@ -152,6 +160,22 @@ def resolve_images(chosen, data, script_dir, args, w, h, fonts, out_dir):
     return resolved, warnings
 
 
+def resolve_videos(chosen, script_dir):
+    """Confere, antes de renderizar qualquer coisa, que o vídeo de cada cena existe."""
+    found = {}
+    for idx, scene in chosen:
+        if layouts.detect_layout(scene) != 'video':
+            continue
+        if not scene.get('video'):
+            raise StudioError(f'Cena {idx}: o tipo é "vídeo", mas nenhum arquivo foi escolhido (campo "video").')
+        src = Path(scene['video'])
+        src = src if src.is_absolute() else (script_dir / src)
+        if not src.is_file():
+            raise StudioError(f'Vídeo da cena {idx} não encontrado: {src.resolve()}')
+        found[idx] = src.resolve()
+    return found
+
+
 def main():
     args = parse_args()
     t0 = time.time()
@@ -208,6 +232,7 @@ def main():
         print('\nPronto (--images-only). Revise as imagens; para trocar uma, use --regen N, '
               'mude o "prompt" ou aponte "image" para um arquivo seu.')
         return
+    videos = resolve_videos(chosen, project_dir)
 
     clips, wavs, srt, chapters = [], [], [], []
     clock = 0.0
@@ -238,7 +263,10 @@ def main():
         ctx = layouts.Ctx(scene, idx, w, h, theme, channel, fonts, font_name, shifted,
                           head, head + speech, total)
         styles, lay_events = [], []
-        if layout == 'image':
+        if layout == 'video':
+            styles, lay_events = layouts.image_overlay(ctx)  # título opcional, como nas imagens
+            kind, amount = 'video', 0.0
+        elif layout == 'image':
             photo = visuals.fit_16x9(images[idx], w, h)
             visuals.finish_photo(photo, darken_top=bool(scene.get('overlay_title'))).save(img)
             styles, lay_events = layouts.image_overlay(ctx)
@@ -261,9 +289,17 @@ def main():
         wav = work / f'audio_{idx:02}.wav'
         audio.scene_audio(src, wav, head, total)
         clip = work / f'video_{idx:02}.mp4'
-        motion = video.pick_motion(scene.get('motion', 'auto'), idx, kind)
-        video.render_scene(img.name, ass.name, clip.name, frames, w, h, fps, motion, fade_in, fade_out,
-                           FADE, cwd=work, amount=amount, preset=args.preset)
+        if layout == 'video':
+            piece = video.prepare_clip(videos[idx], work, idx, w, h, fps, scene.get('video_start'),
+                                       scene.get('video_end'), preset=args.preset)
+            shade = work / f'sombra_{idx:02}.png'
+            visuals.shade_overlay(w, h, darken_top=bool(scene.get('overlay_title'))).save(shade)
+            video.render_video_scene(piece.name, shade.name, ass.name, clip.name, frames, w, h, fps,
+                                     fade_in, fade_out, FADE, cwd=work, preset=args.preset)
+        else:
+            motion = video.pick_motion(scene.get('motion', 'auto'), idx, kind)
+            video.render_scene(img.name, ass.name, clip.name, frames, w, h, fps, motion, fade_in, fade_out,
+                               FADE, cwd=work, amount=amount, preset=args.preset)
         clips.append(clip)
         wavs.append(wav)
         clock += total

@@ -9,7 +9,7 @@ import threading
 import time
 from pathlib import Path
 
-MODES = ('images', 'preview', 'render')
+MODES = ('images', 'preview', 'render', 'scene')
 PROVIDERS = ('pollinations', 'gemini', 'openai', 'comfyui', 'none')
 _REGEN = re.compile(r'\d+(,\d+)*')
 _RENDER_STEP = re.compile(r'^\[(\d+)/(\d+)\] Cena')
@@ -21,7 +21,8 @@ class JobError(Exception):
     pass
 
 
-def build_command(python, main_py, script, mode, provider=None, regen='', strict=True, no_voice=False):
+def build_command(python, main_py, script, mode, provider=None, regen='', strict=True, no_voice=False,
+                  scene=None):
     """Monta a linha de comando do main.py. Levanta JobError para entradas inválidas."""
     if mode not in MODES:
         raise JobError(f'Modo inválido: {mode}')
@@ -30,6 +31,10 @@ def build_command(python, main_py, script, mode, provider=None, regen='', strict
         cmd.append('--images-only')
     if mode == 'preview':
         cmd.append('--preview')
+    if mode == 'scene':  # prévia de uma única cena, em 720p
+        if not isinstance(scene, int) or isinstance(scene, bool) or scene < 1:
+            raise JobError('Informe o número da cena (1 ou mais).')
+        cmd.extend(['--scenes', f'{scene}-{scene}', '--res', '1280x720'])
     if provider:
         if provider not in PROVIDERS:
             raise JobError(f'Fornecedor inválido: {provider}')
@@ -45,6 +50,8 @@ def build_command(python, main_py, script, mode, provider=None, regen='', strict
         cmd.append('--no-voice')
     if mode == 'preview':
         cmd.extend(['--output', 'output/preview.mp4'])
+    if mode == 'scene':
+        cmd.extend(['--output', f'output/cena_{scene:02}.mp4'])
     return cmd
 
 

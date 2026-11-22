@@ -59,6 +59,13 @@ do programa.
   em `../canais`. Cancelar usa `taskkill /T` para matar também o ffmpeg. Aberta por `abrir_studio.bat`
   (usa `.venv\Scripts\pythonw.exe`). Integrada a partir de uma proposta; ainda NÃO foi aberta/validada na
   máquina do Renato.
+- Cena de vídeo (v0.6): `"video"` (+ `video_start`/`video_end`) vira o layout `video` (prioridade sobre
+  imagem). `studio/video.py`: `prepare_clip()` recorta/enche o quadro/descarta o áudio e guarda em cache em
+  `temp/`; `render_video_scene()` faz o loop (`-stream_loop`), sobrepõe a sombra (`visuals.shade_overlay`) e
+  as legendas. `main.resolve_videos()` valida os arquivos antes de renderizar. Biblioteca por canal em
+  `assets/media` (ignorada pelo Git; API em `webui/library.py`). "Vídeo IA" = futuro: gerar um MP4 em
+  `assets/media` e preencher `video`, sem mudar o motor. Vídeo importado vem do usuário: lembrar de licença.
+  Detalhe: `--scenes N-N` + `--output` já fazia prévia de uma cena; a interface usa isso ("Prévia desta cena").
 - `main.py` — CLI e orquestração. `ROOT` = pasta onde `main.py` está (só usada como fallback para achar
   o workflow padrão do ComfyUI). `project_dir = script.parent` (ver acima).
 - `.env` — carregado em ordem de prioridade via `os.environ.setdefault` (quem carrega primeiro "ganha"):

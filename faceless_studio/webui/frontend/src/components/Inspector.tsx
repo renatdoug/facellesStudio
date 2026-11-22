@@ -1,11 +1,71 @@
 import { useEffect, useState } from 'react'
-import { KINDS, changeKind, hasContent } from '../scenes'
-import type { Scene } from '../types'
+import { KINDS, changeKind, fmtTime, hasContent } from '../scenes'
+import type { LibraryItem, Scene, VideoInfo } from '../types'
+import LibraryDialog from './LibraryDialog'
 
 interface Props {
   scene: Scene
   layout: string
+  channel: string
+  video: VideoInfo | null
+  narrationSeconds: number
   onChange: (scene: Scene) => void
+  onPickVideo: (item: LibraryItem) => void
+}
+
+function VideoPanel({ scene, video, narrationSeconds, channel, onChange, onPickVideo }:
+  Pick<Props, 'scene' | 'video' | 'narrationSeconds' | 'channel' | 'onChange' | 'onPickVideo'>) {
+  const [open, setOpen] = useState(false)
+  const name = typeof scene.video === 'string' ? scene.video.split(/[\/]/).pop() ?? '' : ''
+  const duration = video?.duration ?? null
+  const start = typeof scene.video_start === 'number' ? scene.video_start : 0
+  const end = typeof scene.video_end === 'number' ? scene.video_end : duration
+  const segment = end != null ? Math.max(0, end - start) : null
+  const setTrim = (key: 'video_start' | 'video_end', v: string) => {
+    const next = { ...scene }
+    if (v === '' || Number.isNaN(Number(v))) delete next[key]
+    else next[key] = Math.max(0, Number(v))
+    onChange(next)
+  }
+  const pick = (item: LibraryItem) => {
+    const { layout: _unused, ...rest } = scene // eslint-disable-line @typescript-eslint/no-unused-vars
+    onChange({ ...rest, video: `assets/media/${item.name}` })
+    onPickVideo(item)
+    setOpen(false)
+  }
+  return (
+    <div className="field">
+      <span>Vídeo de fundo</span>
+      <div className="media-card">
+        <div className="media-thumb">
+          {video?.thumb ? <img src={video.thumb} alt="" /> : <div className="placeholder">{name ? 'sem miniatura' : 'Nenhum vídeo'}</div>}
+        </div>
+        <div className="media-info">
+          <b title={name}>{name || 'Escolha um vídeo'}</b>
+          {duration != null && <small>{fmtTime(duration)} no total</small>}
+          {name && video?.exists === false && <small className="error">Arquivo não encontrado.</small>}
+          <button className="secondary" onClick={() => setOpen(true)}>{name ? 'Trocar…' : 'Escolher ou importar…'}</button>
+        </div>
+      </div>
+      <div className="trim">
+        <label className="field"><span>Começar em (s)</span>
+          <input type="number" min={0} step={0.1} value={scene.video_start ?? ''} placeholder="0"
+                 onChange={(e) => setTrim('video_start', e.target.value)} /></label>
+        <label className="field"><span>Terminar em (s)</span>
+          <input type="number" min={0} step={0.1} value={scene.video_end ?? ''} placeholder={duration != null ? String(duration) : 'fim'}
+                 onChange={(e) => setTrim('video_end', e.target.value)} /></label>
+      </div>
+      {segment != null && segment > 0 && (
+        <small className="hint">
+          Trecho de {fmtTime(segment)}; narração ≈ {fmtTime(narrationSeconds)}.{' '}
+          {segment + 0.25 < narrationSeconds ? 'O trecho é mais curto: ele se repete em loop.'
+            : segment > narrationSeconds + 0.25 ? 'O trecho é mais longo: o que passar da narração é cortado.' : 'Duração compatível.'}
+        </small>
+      )}
+      <small className="hint">O áudio original do vídeo é descartado; só a narração (e a trilha) tocam.</small>
+      {open && <LibraryDialog channel={channel} current={name || null} onPick={pick} onClose={() => setOpen(false)} />}
+    </div>
+  )
 }
 
 function JsonField({ label, value, onValid }: { label: string; value: unknown; onValid: (v: unknown) => void }) {
@@ -50,7 +110,7 @@ function ItemsEditor({ items, onChange }: { items: Scene[]; onChange: (items: Sc
   )
 }
 
-export default function Inspector({ scene, layout, onChange }: Props) {
+export default function Inspector({ scene, layout, channel, video, narrationSeconds, onChange, onPickVideo }: Props) {
   const patch = (p: Scene) => onChange({ ...scene, ...p })
   const setKind = (kind: string) => {
     if (kind === layout) return
@@ -65,7 +125,8 @@ export default function Inspector({ scene, layout, onChange }: Props) {
         <span>Tipo de cena</span>
         <div className="kinds">
           {KINDS.map((k) => (
-            <button key={k.id} className={'chip' + (k.id === layout ? ' on' : '')} title={k.hint} onClick={() => setKind(k.id)}>
+            <button key={k.id} className={'chip' + (k.id === layout ? ' on' : '')} title={k.hint}
+                    disabled={k.soon} onClick={() => setKind(k.id)}>
               {k.label}
             </button>
           ))}
@@ -94,6 +155,16 @@ export default function Inspector({ scene, layout, onChange }: Props) {
           <label className="check">
             <input type="checkbox" checked={!!scene.overlay_title} onChange={(e) => patch({ overlay_title: e.target.checked })} />
             Mostrar o destaque sobre a imagem
+          </label>
+        </>
+      )}
+      {layout === 'video' && (
+        <>
+          <VideoPanel scene={scene} video={video} narrationSeconds={narrationSeconds} channel={channel}
+                      onChange={onChange} onPickVideo={onPickVideo} />
+          <label className="check">
+            <input type="checkbox" checked={!!scene.overlay_title} onChange={(e) => patch({ overlay_title: e.target.checked })} />
+            Mostrar o destaque sobre o vídeo
           </label>
         </>
       )}

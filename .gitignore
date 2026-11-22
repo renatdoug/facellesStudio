@@ -19,6 +19,7 @@ __pycache__/
 **/temp/
 **/output/
 **/assets/generated/
+**/assets/media/
 
 # Front-end (a pasta dist/ compilada É versionada: assim não é preciso ter Node para usar)
 **/node_modules/

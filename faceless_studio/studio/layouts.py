@@ -11,7 +11,7 @@ from . import charts, visuals
 from .subtitles import ass_color, ass_time, esc, find_word_time
 from .util import StudioError
 
-LAYOUTS = ('card', 'image', 'list', 'number', 'compare', 'quote', 'chart')
+LAYOUTS = ('card', 'image', 'video', 'list', 'number', 'compare', 'quote', 'chart')
 TEXT_LAYOUTS = ('list', 'number', 'compare', 'quote', 'chart')
 
 
@@ -20,6 +20,8 @@ def detect_layout(scene):
         if scene['layout'] not in LAYOUTS:
             raise StudioError(f'Layout "{scene["layout"]}" inválido. Use: ' + ', '.join(LAYOUTS))
         return scene['layout']
+    if scene.get('video'):  # clipe do usuário (ou, no futuro, gerado por IA) como fundo
+        return 'video'
     if scene.get('image') or scene.get('prompt'):
         return 'image'
     for key, name in (('chart', 'chart'), ('number', 'number'), ('items', 'list'),

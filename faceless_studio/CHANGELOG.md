@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.6.0 — vídeo como fundo da cena
+
+- Novo tipo de cena **vídeo**: `"video": "assets/media/clipe.mp4"` (caminho relativo à pasta do roteiro, ou absoluto). O clipe enche o quadro 16:9 (corte central, sem barras), o áudio original é descartado e a narração, a trilha, as legendas karaokê e o título opcional (`overlay_title`) continuam por cima, com o mesmo escurecimento da base usado nas imagens.
+- `"video_start"` e `"video_end"` (segundos) escolhem o trecho. Se o trecho for mais curto que a narração, ele **se repete em loop**; se for mais longo, é cortado no fim da fala.
+- O trecho preparado fica em cache em `temp/`: refazer uma prévia não recodifica o clipe.
+- Erros claros antes de renderizar: cena de vídeo sem arquivo, arquivo não encontrado, trecho inválido.
+- `layouts.detect_layout`: `video` tem prioridade sobre `image`/`prompt`. `main.py` ganhou `resolve_videos()`; `studio/video.py` ganhou `prepare_clip()`, `render_video_scene()` e `clip_window()`.
+- Interface web: chip **Vídeo** (e **Vídeo IA**, desativado, "em breve"), painel de mídia da cena com miniatura, duração, início/fim e aviso de loop/corte; **biblioteca de vídeos por canal** (`assets/media`: importar, reutilizar, apagar); **Prévia desta cena** (720p, só a cena escolhida, em `output/cena_NN.mp4`); aviso quando uma cena de vídeo está sem arquivo.
+- API: `GET/PUT/DELETE /api/channels/{canal}/library`. Importação em streaming (limite de 4 GB, só extensões de vídeo, nome sanitizado, nunca sobrescreve, valida com ffprobe).
+- 16 testes novos (total: 53), incluindo uma renderização real com FFmpeg (loop, corte, áudio descartado, vídeo em movimento).
+- Arquitetura para o futuro: um fornecedor de vídeo por IA só precisa gravar um MP4 em `assets/media` e preencher `video`; nada mais no motor muda. Ainda não implementado.
+
 ## v0.5.0 — interface web
 
 - `web.py` + `webui/`: servidor local (FastAPI, só `127.0.0.1`) e front-end React/TypeScript. Abre no navegador pelo `abrir_studio.bat`.

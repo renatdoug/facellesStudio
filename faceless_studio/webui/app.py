@@ -16,13 +16,17 @@ from pydantic import BaseModel
 import main as engine
 from studio import layouts
 from studio.util import StudioError
+from webui import library
 from webui.jobs import PROVIDERS, JobError, JobManager
 
 NAME_RE = re.compile(r'[A-Za-z0-9][A-Za-z0-9_-]{0,49}')
 NEW_CHANNEL_RE = re.compile(r'[a-z0-9][a-z0-9_-]{1,49}')
 SCRIPT_RE = re.compile(r'[A-Za-z0-9][A-Za-z0-9_-]{0,59}\.json')
 MEDIA = {'image': ('assets/generated', {'.jpg', '.jpeg', '.png', '.webp'}),
-         'output': ('output', {'.jpg', '.png', '.mp4', '.srt', '.txt'})}
+         'output': ('output', {'.jpg', '.png', '.mp4', '.srt', '.txt'}),
+         'library': ('assets/media', library.VIDEO_EXTS),
+         'thumb': ('temp/thumbs', {'.jpg'})}
+SCENE_PREVIEW_RE = re.compile(r'cena_(\d+)\.mp4')
 ENV_KEYS = ('GEMINI_API_KEY', 'OPENAI_API_KEY', 'POLLINATIONS_API_KEY')
 WORDS_PER_SECOND = 2.5  # estimativa para a linha do tempo (a duração real vem da voz)
 LOCAL_HOSTS = {'localhost', '127.0.0.1', '[::1]'}
@@ -36,6 +40,7 @@ class JobRequest(BaseModel):
     regen: str = ''
     strict: bool = True
     no_voice: bool = False
+    scene: Optional[int] = None
 
 
 class NameRequest(BaseModel):
@@ -98,6 +103,27 @@ def create_app(channels_dir, install_dir, jobs: JobManager | None = None, dist_d
             return None
         mtime = int(path.stat().st_mtime)
         return {'url': f'{url}?v={mtime}', 'mtime': mtime, 'size': path.stat().st_size}
+
+    def library_item(folder: Path, path: Path) -> dict:
+        info = library.probe(path)
+        thumb = library.thumbnail(path, folder / 'temp' / 'thumbs', info['duration'])
+        base = f'/api/channels/{folder.name}/media'
+        st = path.stat()
+        return {'name': path.name, 'size': st.st_size, 'mtime': int(st.st_mtime), 'duration': info['duration'],
+                'url': f'{base}/library/{path.name}?v={int(st.st_mtime)}',
+                'thumb': f'{base}/thumb/{thumb.name}' if thumb else None}
+
+    def video_info(folder: Path, scene: dict) -> dict:
+        """Situação do vídeo da cena: arquivo existe? está na biblioteca do canal?"""
+        ref = scene.get('video')
+        if not ref or not isinstance(ref, str):
+            return {'path': None, 'exists': False, 'in_library': False}
+        path = Path(ref)
+        path = path if path.is_absolute() else folder / path
+        info = {'path': ref, 'exists': path.is_file(), 'in_library': False}
+        if info['exists'] and path.resolve().parent == (folder / 'assets' / 'media').resolve():
+            info.update(library_item(folder, path), in_library=True)
+        return info
 
     def read_env_keys(folder: Path) -> dict:
         found = {}
@@ -199,11 +225,18 @@ def create_app(channels_dir, install_dir, jobs: JobManager | None = None, dist_d
                          'provider': entry.get('provider'), 'prompt': entry.get('prompt')}
             words = len(str(scene.get('narration', '')).split())
             scenes.append({'index': idx, 'id': sid, 'layout': layout, 'image': image,
+                           'video': video_info(folder, scene) if layout == 'video' else None,
                            'seconds': round(words / WORDS_PER_SECOND + 0.8, 1)})
         out = folder / 'output'
         outputs = {'preview': file_info(out / 'preview.mp4', f'{base}/output/preview.mp4'),
                    'final': file_info(out / 'video_final.mp4', f'{base}/output/video_final.mp4'),
-                   'sheet': file_info(out / 'revisao_imagens.jpg', f'{base}/output/revisao_imagens.jpg')}
+                   'sheet': file_info(out / 'revisao_imagens.jpg', f'{base}/output/revisao_imagens.jpg'),
+                   'scenes': {}}
+        if out.is_dir():
+            for f in sorted(out.glob('cena_*.mp4')):
+                m = SCENE_PREVIEW_RE.fullmatch(f.name)
+                if m:
+                    outputs['scenes'][str(int(m.group(1)))] = file_info(f, f'{base}/output/{f.name}')
         return {'script': data, 'scenes': scenes, 'outputs': outputs, 'keys': read_env_keys(folder)}
 
     @app.put('/api/channels/{channel}/scripts/{script}')
@@ -245,6 +278,55 @@ def create_app(channels_dir, install_dir, jobs: JobManager | None = None, dist_d
             raise HTTPException(404)
         return FileResponse(path, headers={'Cache-Control': 'no-cache'})
 
+    # ---------------------------------------------------------------- biblioteca de mídia
+    @app.get('/api/channels/{channel}/library')
+    def list_library(channel: str):
+        folder = channel_dir(channel)
+        lib = folder / 'assets' / 'media'
+        files = [p for p in lib.iterdir() if p.is_file() and p.suffix.lower() in library.VIDEO_EXTS] \
+            if lib.is_dir() else []
+        return [library_item(folder, p) for p in sorted(files, key=lambda p: p.stat().st_mtime, reverse=True)]
+
+    @app.put('/api/channels/{channel}/library/{name}')
+    async def import_video(channel: str, name: str, request: Request):
+        folder = channel_dir(channel)
+        clean = library.safe_name(name)
+        if not clean:
+            raise HTTPException(422, 'Formato não aceito. Use: ' + ', '.join(sorted(library.VIDEO_EXTS)))
+        declared = int(request.headers.get('content-length') or 0)
+        if declared > library.MAX_BYTES:
+            raise HTTPException(413, 'Arquivo grande demais (limite de 4 GB).')
+        lib = folder / 'assets' / 'media'
+        lib.mkdir(parents=True, exist_ok=True)
+        final = library.unique_name(lib, clean)
+        part = lib / (final + '.part')
+        size = 0
+        try:
+            with part.open('wb') as fh:
+                async for chunk in request.stream():
+                    size += len(chunk)
+                    if size > library.MAX_BYTES:
+                        raise HTTPException(413, 'Arquivo grande demais (limite de 4 GB).')
+                    fh.write(chunk)
+            if size == 0:
+                raise HTTPException(422, 'Arquivo vazio.')
+            if not library.probe(part)['video']:
+                raise HTTPException(422, 'O arquivo não parece ser um vídeo que o FFmpeg consiga ler.')
+            os.replace(part, lib / final)
+        finally:
+            part.unlink(missing_ok=True)
+        return library_item(folder, lib / final)
+
+    @app.delete('/api/channels/{channel}/library/{name}')
+    def delete_video(channel: str, name: str):
+        folder = channel_dir(channel)
+        clean = library.safe_name(name)
+        path = folder / 'assets' / 'media' / (clean or '')
+        if not clean or clean != name or not path.is_file():
+            raise HTTPException(404, 'Arquivo não encontrado na biblioteca.')
+        path.unlink()
+        return {'deleted': name}
+
     # ---------------------------------------------------------------- produção
     @app.post('/api/jobs')
     def start_job(req: JobRequest):
@@ -255,7 +337,7 @@ def create_app(channels_dir, install_dir, jobs: JobManager | None = None, dist_d
             raise HTTPException(422, f'Roteiro inválido: {err}')
         try:
             job_id = jobs.start(path, req.mode, req.channel, req.script, provider=req.provider,
-                                regen=req.regen, strict=req.strict, no_voice=req.no_voice)
+                                regen=req.regen, strict=req.strict, no_voice=req.no_voice, scene=req.scene)
         except JobError as err:
             raise HTTPException(409 if 'andamento' in str(err) else 422, str(err))
         return {'id': job_id}

@@ -1,5 +1,10 @@
 """Renderização de cada cena (movimento de câmera, legenda, fades) e junção das cenas."""
-from .util import run
+import hashlib
+from pathlib import Path
+
+from .util import StudioError, media_duration, run
+
+MIN_CLIP = 0.5  # segundos: trechos menores que isso não servem de fundo
 
 MOTIONS = ('zoom_in', 'zoom_out', 'pan_left', 'pan_right', 'static')
 AUTO_CARD = ('zoom_in', 'zoom_out')  # cartões têm texto na margem: sem pan lateral
@@ -49,6 +54,56 @@ def render_scene(image, ass_name, out, frames, w, h, fps, motion, fade_in, fade_
     run(['ffmpeg', '-y', '-loglevel', 'error', '-i', image, '-vf', ','.join(vf),
          '-frames:v', frames, '-r', fps, '-c:v', 'libx264', '-preset', preset, '-crf', crf,
          '-pix_fmt', 'yuv420p', '-an', out], cwd=cwd)
+
+
+def clip_window(src_duration, start=None, end=None):
+    """Valida o trecho pedido ("video_start"/"video_end") e devolve (início, duração)."""
+    start = float(start or 0)
+    if start < 0:
+        raise StudioError('"video_start" não pode ser negativo.')
+    if start >= src_duration - 0.05:
+        raise StudioError(f'"video_start" ({start:g} s) passa do fim do vídeo ({src_duration:.1f} s).')
+    stop = src_duration if end in (None, '') else min(float(end), src_duration)
+    if stop - start < MIN_CLIP:
+        raise StudioError(f'O trecho do vídeo ({start:g} s a {stop:g} s) é curto demais (mínimo {MIN_CLIP} s).')
+    return start, stop - start
+
+
+def prepare_clip(src, dest_dir, idx, w, h, fps, start=None, end=None, preset='veryfast', crf=18):
+    """Recorta o trecho, enche o quadro w x h (corte central, sem barras), normaliza o fps e
+    descarta o áudio original. O resultado fica em cache: só refaz se algo mudou."""
+    src = Path(src)
+    st = src.stat()
+    start, length = clip_window(media_duration(src), start, end)
+    key = hashlib.sha1(f'{src.resolve()}|{st.st_size}|{st.st_mtime_ns}|{start}|{length}|{w}x{h}|{fps}|{crf}'
+                       .encode('utf-8')).hexdigest()[:12]
+    out = Path(dest_dir) / f'clip_{idx:02}_{key}.mp4'
+    if out.exists():
+        return out
+    vf = (f'scale={w}:{h}:force_original_aspect_ratio=increase:flags=lanczos,crop={w}:{h},'
+          f'fps={fps},setsar=1,format=yuv420p')
+    tmp = out.with_name(out.stem + '.part.mp4')
+    run(['ffmpeg', '-y', '-loglevel', 'error', '-ss', f'{start:.3f}', '-i', src, '-t', f'{length:.3f}',
+         '-an', '-vf', vf, '-c:v', 'libx264', '-preset', preset, '-crf', crf, '-pix_fmt', 'yuv420p', tmp])
+    tmp.replace(out)
+    return out
+
+
+def render_video_scene(clip, shade, ass_name, out, frames, w, h, fps, fade_in, fade_out, fade_s,
+                       cwd, preset='veryfast', crf=20):
+    """Clipe já preparado (prepare_clip) -> cena com `frames` quadros exatos. Se o trecho for mais
+    curto que a narração ele se repete em loop; se for mais longo, é cortado. `clip`, `shade` e
+    `ass_name` são nomes relativos a `cwd`."""
+    seconds = frames / fps
+    chain = ['[0:v][1:v]overlay=0:0:format=auto', f'ass={ass_name}:fontsdir=fonts', 'setsar=1']
+    if fade_in:
+        chain.append(f'fade=t=in:st=0:d={fade_s}')
+    if fade_out:
+        chain.append(f'fade=t=out:st={max(0, seconds - fade_s):.3f}:d={fade_s}')
+    chain.append('format=yuv420p')
+    run(['ffmpeg', '-y', '-loglevel', 'error', '-stream_loop', '-1', '-i', clip, '-loop', '1', '-i', shade,
+         '-filter_complex', ','.join(chain), '-frames:v', frames, '-r', fps, '-c:v', 'libx264',
+         '-preset', preset, '-crf', crf, '-pix_fmt', 'yuv420p', '-an', out], cwd=cwd)
 
 
 def concat_files(paths, list_file, out):

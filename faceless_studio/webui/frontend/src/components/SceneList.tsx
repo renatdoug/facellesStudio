@@ -22,7 +22,7 @@ export default function SceneList({ scenes, infos, selected, onSelect, onAdd, on
           return (
             <div key={i} className={'scene-item' + (i === selected ? ' on' : '')} onClick={() => onSelect(i)}>
               <div className="mini">
-                {info?.image?.url ? <img src={info.image.url} alt="" /> : <span>{String(i + 1).padStart(2, '0')}</span>}
+                {(info?.image?.url || info?.video?.thumb) ? <img src={(info.image?.url || info.video?.thumb) as string} alt="" /> : <span>{String(i + 1).padStart(2, '0')}</span>}
               </div>
               <div className="txt">
                 <b>{String(i + 1).padStart(2, '0')} · {s.title || '(sem título)'}</b>

@@ -176,3 +176,84 @@ def test_job_com_erro(env):
         assert snap['returncode'] == 3
     finally:
         jobs_mod.build_command = original
+
+
+# ------------------------------------------------------------------ biblioteca de mídia e prévia por cena
+import shutil
+import subprocess
+
+needs_ffmpeg = pytest.mark.skipif(not (shutil.which('ffmpeg') and shutil.which('ffprobe')),
+                                  reason='FFmpeg não encontrado')
+
+
+def test_nome_seguro_de_arquivo():
+    from webui.library import safe_name
+    assert safe_name('Ação  do dia (1).MOV') == 'Acao_do_dia_1.mov'
+    assert safe_name('..\..\etc\passwd.mp4') == 'passwd.mp4'
+    assert safe_name('C:/x/y/clip.webm') == 'clip.webm'
+    assert safe_name('.mp4') is None  # arquivo oculto, sem nome
+    assert safe_name('___.mp4') == 'video.mp4'
+    assert safe_name('virus.exe') is None and safe_name('semextensao') is None
+
+
+def test_build_command_cena_unica():
+    cmd = build_command('py', 'main.py', 'r.json', 'scene', scene=3, no_voice=True)
+    assert cmd == ['py', '-u', 'main.py', '--script', 'r.json', '--scenes', '3-3', '--res', '1280x720',
+                   '--strict-images', '--no-voice', '--output', 'output/cena_03.mp4']
+    for bad in (None, 0, -1, True, '2'):
+        with pytest.raises(JobError):
+            build_command('py', 'm', 'r', 'scene', scene=bad)
+
+
+def test_importar_rejeita_formato_e_arquivo_que_nao_e_video(env):
+    client, channels = env
+    assert client.put('/api/channels/meu-canal/library/documento.txt', content=b'abc').status_code == 422
+    r = client.put('/api/channels/meu-canal/library/falso.mp4', content=b'isto nao e um video')
+    assert r.status_code == 422
+    lib = channels / 'meu-canal' / 'assets' / 'media'
+    assert not lib.exists() or list(lib.iterdir()) == []  # nada sobra (nem .part)
+    assert client.put('/api/channels/meu-canal/library/vazio.mp4', content=b'').status_code == 422
+    assert client.delete('/api/channels/meu-canal/library/inexistente.mp4').status_code == 404
+
+
+@needs_ffmpeg
+def test_biblioteca_importar_listar_usar_na_cena_e_apagar(env, tmp_path):
+    client, channels = env
+    clip = tmp_path / 'amostra.mp4'
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=duration=2:size=160x120:rate=10',
+                    '-pix_fmt', 'yuv420p', str(clip)], check=True)
+    r = client.put('/api/channels/meu-canal/library/Minha%20Amostra.MP4', content=clip.read_bytes())
+    assert r.status_code == 200, r.text
+    item = r.json()
+    assert item['name'] == 'Minha_Amostra.mp4'  # sem espaço, extensão minúscula
+    assert item['duration'] == pytest.approx(2, abs=0.3) and item['thumb']
+    assert client.get(item['thumb']).status_code == 200
+    assert client.get(item['url']).status_code == 200
+    again = client.put('/api/channels/meu-canal/library/Minha_Amostra.mp4', content=clip.read_bytes()).json()
+    assert again['name'] == 'Minha_Amostra-2.mp4'  # nunca sobrescreve
+    assert [i['name'] for i in client.get('/api/channels/meu-canal/library').json()] \
+        == ['Minha_Amostra-2.mp4', 'Minha_Amostra.mp4'] or len(client.get('/api/channels/meu-canal/library').json()) == 2
+
+    script = json.loads(json.dumps(SCRIPT))
+    script['scenes'][0] = {'id': 'abertura', 'title': 'V', 'narration': 'Olá.', 'video': 'assets/media/Minha_Amostra.mp4'}
+    script['scenes'].append({'id': 'sem-arquivo', 'title': 'S', 'narration': 'Oi.', 'layout': 'video'})
+    script['scenes'].append({'id': 'sumiu', 'title': 'X', 'narration': 'Oi.', 'video': 'assets/media/nao_existe.mp4'})
+    assert client.put('/api/channels/meu-canal/scripts/roteiro.json', json=script).status_code == 200
+    scenes = client.get('/api/channels/meu-canal/scripts/roteiro.json').json()['scenes']
+    assert scenes[0]['layout'] == 'video' and scenes[0]['video']['in_library'] is True
+    assert scenes[0]['video']['thumb'] and scenes[0]['video']['duration']
+    assert scenes[2]['video'] == {'path': None, 'exists': False, 'in_library': False}  # rascunho sem arquivo
+    assert scenes[3]['video']['exists'] is False and scenes[3]['video']['path'].endswith('nao_existe.mp4')
+
+    assert client.delete('/api/channels/meu-canal/library/Minha_Amostra.mp4').status_code == 200
+    assert client.delete('/api/channels/meu-canal/library/..%2Froteiro.json').status_code in (404, 405)
+    assert (channels / 'meu-canal' / 'roteiro.json').exists()
+
+
+def test_previas_por_cena_aparecem_no_estado(env):
+    client, channels = env
+    out = channels / 'meu-canal' / 'output'
+    (out / 'cena_02.mp4').write_bytes(b'0000')
+    (out / 'cena_xx.mp4').write_bytes(b'0000')
+    state = client.get('/api/channels/meu-canal/scripts/roteiro.json').json()
+    assert list(state['outputs']['scenes']) == ['2']

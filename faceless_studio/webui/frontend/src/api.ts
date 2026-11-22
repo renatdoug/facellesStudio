@@ -1,4 +1,4 @@
-import type { Channel, Job, Meta, Script, ScriptState } from './types'
+import type { Channel, Job, LibraryItem, Meta, Script, ScriptState } from './types'
 
 async function call<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -34,8 +34,21 @@ export const api = {
     call<{ keys: Record<string, string | null> }>(`/api/channels/${enc(channel)}/env`, post({ key, value })),
   startJob: (req: {
     channel: string; script: string; mode: string; provider?: string | null
-    regen?: string; strict: boolean; no_voice: boolean
+    regen?: string; strict: boolean; no_voice: boolean; scene?: number | null
   }) => call<{ id: number }>('/api/jobs', post(req)),
+  library: (channel: string) => call<LibraryItem[]>(`/api/channels/${enc(channel)}/library`),
+  uploadVideo: async (channel: string, file: File): Promise<LibraryItem> => {
+    // corpo bruto (sem multipart): o servidor grava em streaming, importante para vídeos grandes
+    const res = await fetch(`/api/channels/${enc(channel)}/library/${enc(file.name)}`, { method: 'PUT', body: file })
+    if (!res.ok) {
+      let detail = `Erro ${res.status}`
+      try { const b = await res.json(); if (typeof b.detail === 'string') detail = b.detail } catch { /* sem JSON */ }
+      throw new Error(detail)
+    }
+    return res.json()
+  },
+  deleteVideo: (channel: string, name: string) =>
+    call<{ deleted: string }>(`/api/channels/${enc(channel)}/library/${enc(name)}`, { method: 'DELETE' }),
   job: (since: number) => call<Job | null>(`/api/jobs/current?since=${since}`),
   cancel: () => call<{ cancelled: boolean }>('/api/jobs/cancel', post({})),
 }

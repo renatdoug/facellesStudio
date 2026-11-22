@@ -11,8 +11,12 @@ interface Props {
   scenes: Scene[]
   infos: SceneInfo[]
   preview: FileInfo | null
+  scenePreview: FileInfo | null
+  previewKind: 'general' | 'scene'
+  setPreviewKind: (k: 'general' | 'scene') => void
   final: FileInfo | null
   busy: boolean
+  onScenePreview: (index: number) => void
   onRegen: (index: number) => void
   onSelect: (index: number) => void
 }
@@ -49,16 +53,23 @@ export default function Stage(p: Props) {
       {p.view === 'scene' && p.scene && p.info && (
         <div className="canvas-wrap">
           <div className="canvas">
-            {p.info.image?.url ? <img src={p.info.image.url} alt="" />
-              : <div className="placeholder">{p.info.layout === 'image' ? 'Imagem ainda não gerada' : kindLabel(p.info.layout)}</div>}
-            {p.info.layout !== 'image' && <Summary scene={p.scene} layout={p.info.layout} />}
-            {p.scene.headline && <div className="headline">{p.scene.headline}</div>}
+            {p.info.layout === 'video'
+              ? (p.info.video?.url
+                ? <video key={p.info.video.url + (p.scene.video_start ?? 0)} src={`${p.info.video.url}#t=${p.scene.video_start ?? 0}`}
+                         muted loop controls playsInline />
+                : <div className="placeholder">{p.scene.video ? 'Pré-visualização indisponível (salve para conferir)' : 'Escolha um vídeo no painel à direita'}</div>)
+              : p.info.image?.url ? <img src={p.info.image.url} alt="" />
+                : <div className="placeholder">{p.info.layout === 'image' ? 'Imagem ainda não gerada' : kindLabel(p.info.layout)}</div>}
+            {p.info.layout !== 'image' && p.info.layout !== 'video' && <Summary scene={p.scene} layout={p.info.layout} />}
+            {p.scene.headline && p.info.layout !== 'video' && <div className="headline">{p.scene.headline}</div>}
             {p.info.image?.stale && <div className="badge warn">Prompt alterado — gere de novo</div>}
           </div>
           <div className="caption">
             <p>{p.scene.narration}</p>
             <div className="meta">
               <span>{kindLabel(p.info.layout)}</span><span>≈ {fmtTime(p.info.seconds)}</span>
+              <button className="ghost" disabled={p.busy} onClick={() => p.onScenePreview(p.info!.index)}
+                      title="Renderiza só esta cena em 720p, com legendas e narração">▶ Prévia desta cena</button>
               {p.info.layout === 'image' && !p.scene.image && (
                 <button className="ghost" disabled={p.busy} onClick={() => p.onRegen(p.info!.index)}>
                   {p.info.image ? 'Gerar imagem de novo' : 'Gerar imagem'}
@@ -92,9 +103,22 @@ export default function Stage(p: Props) {
         </div>
       )}
 
-      {p.view === 'preview' && (p.preview
-        ? <div className="player"><video key={p.preview.url} src={p.preview.url} controls /></div>
-        : <p className="empty">Ainda não há prévia. Use “Prévia de 2 cenas”.</p>)}
+      {p.view === 'preview' && (
+        <>
+          {p.preview && p.scenePreview && (
+            <div className="tabs sub">
+              <button className={'tab' + (p.previewKind === 'general' ? ' on' : '')} onClick={() => p.setPreviewKind('general')}>Prévia de 2 cenas</button>
+              <button className={'tab' + (p.previewKind === 'scene' ? ' on' : '')} onClick={() => p.setPreviewKind('scene')}>Cena {p.info?.index}</button>
+            </div>
+          )}
+          {(() => {
+            const file = p.scenePreview && (p.previewKind === 'scene' || !p.preview) ? p.scenePreview : p.preview
+            return file
+              ? <div className="player"><video key={file.url} src={file.url} controls /></div>
+              : <p className="empty">Ainda não há prévia. Use “Prévia de 2 cenas” ou “Prévia desta cena”.</p>
+          })()}
+        </>
+      )}
       {p.view === 'final' && (p.final
         ? <div className="player"><video key={p.final.url} src={p.final.url} controls /></div>
         : <p className="empty">Ainda não há vídeo final. Use “Gerar vídeo”.</p>)}
