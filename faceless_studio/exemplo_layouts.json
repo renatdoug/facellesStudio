@@ -1,0 +1,44 @@
+{
+  "title": "Exemplo de layouts de dados",
+  "channel": "Dados na Saúde",
+  "theme": "health",
+  "voice": "pt-BR-FranciscaNeural",
+  "resolution": "1920x1080",
+  "images": {"provider": "none"},
+  "scenes": [
+    {
+      "title": "Número em destaque",
+      "narration": "Em um mês, a unidade registrou mil duzentos e quarenta atendimentos classificados como urgentes.",
+      "headline": "ATENDIMENTOS URGENTES",
+      "number": {"value": 1240, "label": "atendimentos urgentes no mês", "source": "Dados ilustrativos — substitua pelos seus", "on_word": "registrou"}
+    },
+    {
+      "title": "Barras",
+      "transition": "fade",
+      "narration": "Quando separamos por turno, a noite concentra a maior parte das chegadas.",
+      "headline": "CHEGADAS POR TURNO",
+      "chart": {"type": "bar", "labels": ["Manhã", "Tarde", "Noite", "Madrugada"], "values": [28, 31, 34, 7], "unit": "%", "highlight": 2, "source": "Dados ilustrativos"}
+    },
+    {
+      "title": "Linha",
+      "narration": "E a adesão ao protocolo subiu mês a mês depois do treinamento da equipe.",
+      "headline": "ADESÃO AO PROTOCOLO",
+      "chart": {"type": "line", "labels": ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun"], "series": [{"name": "Adesão", "values": [52, 58, 66, 71, 79, 84]}], "unit": "%", "source": "Dados ilustrativos"}
+    },
+    {
+      "title": "Comparação",
+      "transition": "fade",
+      "narration": "Antes, cada profissional passava o plantão do seu jeito. Depois, todos seguiram a mesma estrutura.",
+      "headline": "ANTES E DEPOIS",
+      "compare": {
+        "left": {"title": "Antes", "items": ["Passagem livre, sem roteiro", "Informações esquecidas"]},
+        "right": {"title": "Depois", "on_word": "depois", "items": ["Roteiro SBAR para todos", "Checklist na beira do leito"]}
+      }
+    },
+    {
+      "title": "Citação",
+      "narration": "No fim, a mensagem é simples: o que não é medido não pode ser melhorado.",
+      "quote": {"text": "O que não é medido não pode ser melhorado.", "author": "máxima da gestão da qualidade", "on_word": "mensagem"}
+    }
+  ]
+}

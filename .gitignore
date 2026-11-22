@@ -1,0 +1,25 @@
+# FFmpeg
+/ffmpeg-*/
+/ffmpeg-*.zip
+
+# Pacotes do projeto
+/faceless_studio_v*.zip
+
+# Segredos e configurações
+.env
+**/.env
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Arquivos gerados
+**/temp/
+**/output/
+**/assets/generated/
+
+# Sistema
+.DS_Store
+Thumbs.db

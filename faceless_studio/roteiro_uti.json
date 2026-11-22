@@ -1,0 +1,96 @@
+{
+  "title": "O que acontece nos primeiros minutos na UTI?",
+  "channel": "Dados na Saúde",
+  "theme": "health",
+  "voice": "pt-BR-AntonioNeural",
+  "rate": "+0%",
+  "resolution": "1920x1080",
+  "fps": 30,
+  "subtitles": "karaoke",
+  "music": "",
+  "music_volume_db": -20,
+  "motion_amount": 0.08,
+  "images": {
+    "provider": "pollinations",
+    "style": "editorial digital illustration, clean flat shapes, soft cinematic lighting, dark navy and teal palette, modern hospital, no identifiable faces, widescreen",
+    "seed": 1234
+  },
+  "scenes": [
+    {
+      "id": "abertura",
+      "title": "Os primeiros minutos",
+      "chapter": "Os primeiros minutos",
+      "narration": "Quando um paciente chega à unidade de terapia intensiva, os primeiros minutos exigem organização e decisões rápidas. O objetivo inicial é reconhecer riscos e garantir uma transição segura do cuidado.",
+      "prompt": "modern intensive care unit room at night, empty hospital bed beside a glowing multiparameter monitor, calm and organized atmosphere",
+      "headline": "PRIMEIROS MINUTOS NA UTI",
+      "overlay_title": true,
+      "callouts": [{"text": "TRANSIÇÃO SEGURA", "on_word": "transição"}]
+    },
+    {
+      "id": "passagem",
+      "title": "Passagem de informações",
+      "chapter": "Passagem de plantão",
+      "transition": "fade",
+      "narration": "A equipe recebe as informações essenciais: motivo da admissão, quadro clínico, intervenções já realizadas, medicamentos em uso e riscos identificados. Uma comunicação estruturada reduz omissões.",
+      "headline": "O QUE A EQUIPE PRECISA SABER",
+      "items": [
+        {"text": "Motivo da admissão", "on_word": "motivo"},
+        {"text": "Quadro clínico", "on_word": "quadro"},
+        {"text": "Intervenções já realizadas", "on_word": "intervenções"},
+        {"text": "Medicamentos em uso", "on_word": "medicamentos"},
+        {"text": "Riscos identificados", "on_word": "riscos"}
+      ],
+      "callouts": [{"text": "SBAR", "on_word": "comunicação"}]
+    },
+    {
+      "id": "abcde",
+      "title": "Avaliação inicial",
+      "chapter": "Avaliação e monitorização",
+      "transition": "fade",
+      "narration": "Na avaliação inicial, são verificadas as vias aéreas, a respiração, a circulação, o estado neurológico e a exposição do paciente, de acordo com sua condição e os protocolos da instituição.",
+      "headline": "AVALIAÇÃO SISTEMÁTICA",
+      "items": [
+        {"key": "A", "text": "Vias aéreas", "on_word": "vias"},
+        {"key": "B", "text": "Respiração", "on_word": "respiração"},
+        {"key": "C", "text": "Circulação", "on_word": "circulação"},
+        {"key": "D", "text": "Estado neurológico", "on_word": "neurológico"},
+        {"key": "E", "text": "Exposição", "on_word": "exposição"}
+      ]
+    },
+    {
+      "id": "monitor",
+      "title": "Monitorização",
+      "narration": "A monitorização deve estar adequada à gravidade. Pressão arterial, frequência cardíaca, oxigenação e outros parâmetros são acompanhados para detectar alterações precocemente.",
+      "prompt": "close-up of a bedside multiparameter patient monitor with colorful waveforms, intensive care setting, shallow depth of field",
+      "headline": "MONITORIZAR PARA AGIR",
+      "callouts": [{"text": "PA · FC · SpO2", "on_word": "pressão"}]
+    },
+    {
+      "id": "dispositivos",
+      "title": "Dispositivos e terapias",
+      "transition": "fade",
+      "narration": "A equipe confere acessos, infusões, bombas, ventilação e dispositivos, quando presentes. Identificação correta, doses e parâmetros precisam ser reconciliados com as prescrições e o plano de cuidado.",
+      "headline": "CONFERIR E RECONCILIAR",
+      "compare": {
+        "left": {"title": "Conferir", "items": [
+          {"text": "Acessos", "on_word": "acessos"},
+          {"text": "Infusões e bombas", "on_word": "infusões"},
+          {"text": "Ventilação e dispositivos", "on_word": "ventilação"}
+        ]},
+        "right": {"title": "Reconciliar com", "on_word": "reconciliados", "items": [
+          {"text": "Prescrições", "on_word": "prescrições"},
+          {"text": "Plano de cuidado", "on_word": "plano"}
+        ]}
+      }
+    },
+    {
+      "id": "registro",
+      "title": "Registro e prioridades",
+      "chapter": "Registro e reavaliação",
+      "transition": "fade",
+      "narration": "Por fim, são registradas as condições de admissão e as prioridades assistenciais. O cuidado continua com reavaliações frequentes e comunicação entre os profissionais.",
+      "headline": "",
+      "quote": {"text": "Registrar, reavaliar e comunicar: a admissão não termina na chegada.", "on_word": "registradas"}
+    }
+  ]
+}
