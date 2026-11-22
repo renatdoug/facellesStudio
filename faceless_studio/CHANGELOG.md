@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.8.0 — roteiros escritos por IA (guia e importação)
+
+Para comparar Claude, ChatGPT e Gemini como roteiristas **sem integrar nenhuma API de modelo de linguagem**:
+- **`guia_roteiro_ia.md`**: texto para colar na IA junto com o pedido. Descreve o JSON exato (campos do roteiro e da cena, tipos de cena, gráficos, formato 16:9 e 9:16, legendas, entradas e movimentos, ritmo de Short, prompts de imagem), traz um exemplo completo e uma lista de conferência. Obriga a **separar** o que é dito (`narration`), o que é visto (`prompt`, `items`, `chart`...) e o que precisa de conferência (`revisar`), e proíbe inventar estatísticas, estudos, referências ou doses: dado sem fonte vai com `"source": "A VERIFICAR"` e é listado em `revisar`.
+- **Importar roteiro** (barra lateral): cole o que a IA devolveu (aceita texto em volta e bloco ```json), veja a **prévia ao vivo** (resumo, tabela de cenas, avisos), escolha o canal e importe como **projeto novo**. Nunca sobrescreve: nome repetido vira `-2`, `-3`... e nada existente é alterado.
+- Validação com o **mesmo** `validate_script()` do motor, com mensagens por cena e campo; JSON inválido mostra linha, coluna, o trecho e a causa provável (aspas curvas, vírgula sobrando, comentários).
+- **`studio/script_check.py`**: avisos não bloqueantes, por cena e campo, em três níveis — *erro* (vai falhar ao renderizar: rótulos e valores de tamanhos diferentes, lista sem itens, número sem valor...), *verificar* (fonte ausente, "ilustrativo/A VERIFICAR", itens de `revisar`) e *aviso* (campo desconhecido, com sugestão "Quis dizer ...?").
+- No editor: aviso no topo com a contagem de erros/itens a verificar, e caixa **Para verificar antes de publicar** em cada cena com `revisar` ("Marcar como verificado" limpa a lista).
+- API: `GET /api/guide`, `POST /api/import/preview`, `POST /api/import`; `GET` do roteiro passa a devolver `warnings`.
+- 22 testes novos (total: 107): importação válida, JSON inválido, erros por cena/campo, nome duplicado, preservação byte a byte de tudo que já existe, proteção de origem, e **guia sincronizado com o código** (o exemplo do guia valida; o guia cita todo campo e valor que o motor aceita).
+
 ## v0.7.0 — animações e formato vertical
 
 Animação (sem custo por vídeo, tudo feito pelo próprio motor):

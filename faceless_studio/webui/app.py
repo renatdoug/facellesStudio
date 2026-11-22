@@ -16,8 +16,8 @@ from pydantic import BaseModel
 import main as engine
 from studio import layouts
 from studio.util import StudioError
-from studio import __version__
-from webui import library
+from studio import __version__, script_check
+from webui import importer, library
 from webui.jobs import PROVIDERS, JobError, JobManager
 
 NAME_RE = re.compile(r'[A-Za-z0-9][A-Za-z0-9_-]{0,49}')
@@ -46,6 +46,12 @@ class JobRequest(BaseModel):
 
 class NameRequest(BaseModel):
     name: str
+
+
+class ImportRequest(BaseModel):
+    text: str
+    channel: Optional[str] = None
+    name: Optional[str] = None
 
 
 class EnvRequest(BaseModel):
@@ -238,7 +244,8 @@ def create_app(channels_dir, install_dir, jobs: JobManager | None = None, dist_d
                 m = SCENE_PREVIEW_RE.fullmatch(f.name)
                 if m:
                     outputs['scenes'][str(int(m.group(1)))] = file_info(f, f'{base}/output/{f.name}')
-        return {'script': data, 'scenes': scenes, 'outputs': outputs, 'keys': read_env_keys(folder)}
+        return {'script': data, 'scenes': scenes, 'outputs': outputs, 'keys': read_env_keys(folder),
+                'warnings': script_check.check(data, folder)}
 
     @app.put('/api/channels/{channel}/scripts/{script}')
     def save_script(channel: str, script: str, data: dict[str, Any] = Body(...)):
@@ -278,6 +285,32 @@ def create_app(channels_dir, install_dir, jobs: JobManager | None = None, dist_d
         if path.parent != (folder / sub).resolve() or not path.is_file():
             raise HTTPException(404)
         return FileResponse(path, headers={'Cache-Control': 'no-cache'})
+
+    # ---------------------------------------------------------------- importar roteiro de IA
+    @app.get('/api/guide')
+    def get_guide():
+        path = install_dir / 'guia_roteiro_ia.md'
+        if not path.is_file():
+            raise HTTPException(404, 'Guia não encontrado.')
+        return {'text': path.read_text(encoding='utf-8')}
+
+    @app.post('/api/import/preview')
+    def import_preview(req: ImportRequest):
+        folder = channel_dir(req.channel) if req.channel else None
+        result = importer.analyze(req.text, folder)
+        result.pop('data', None)  # a pré-visualização devolve só o resumo e os avisos
+        return result
+
+    @app.post('/api/import')
+    def import_script(req: ImportRequest):
+        if not req.channel:
+            raise HTTPException(422, 'Escolha o canal onde o roteiro será criado.')
+        folder = channel_dir(req.channel)
+        result = importer.analyze(req.text, folder)
+        if not result['ok']:
+            raise HTTPException(422, result['error']['message'])
+        name = importer.write_new(folder, result['data'], req.name)
+        return {'channel': req.channel, 'script': name}
 
     # ---------------------------------------------------------------- biblioteca de mídia
     @app.get('/api/channels/{channel}/library')

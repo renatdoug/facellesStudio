@@ -36,6 +36,25 @@ export interface SceneInfo {
   video: VideoInfo | null
 }
 
+export interface Issue {
+  level: 'erro' | 'verificar' | 'aviso'
+  scene: number | null
+  field: string | null
+  message: string
+}
+
+export interface ImportPreview {
+  ok: boolean
+  error: { message: string; scene: number | null } | null
+  notes: string[]
+  issues: Issue[]
+  summary: {
+    title: string; channel: string; resolution: string; format: string; subtitles: string; voice: string
+    seconds: number
+    scenes: { index: number; id: string; title: string; layout: string; words: number; seconds: number; revisar: number }[]
+  } | null
+}
+
 export interface FileInfo { url: string; mtime: number; size: number }
 
 export interface ScriptState {
@@ -46,6 +65,7 @@ export interface ScriptState {
     scenes: Record<string, FileInfo> // prévias por cena (chave = número da cena)
   }
   keys: Record<string, string | null>
+  warnings: Issue[]
 }
 
 export interface Job {

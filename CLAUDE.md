@@ -5,7 +5,7 @@
 Programa em Python que transforma um roteiro em JSON em um vídeo MP4 narrado: voz por IA (edge-tts),
 legendas palavra a palavra em estilo karaokê, cenas com layout adaptado automaticamente ao conteúdo
 (lista, número, gráfico, comparação, citação, imagem), e imagens geradas por IA. Serve para produzir
-vídeos "faceless" para YouTube sem o criador aparecer na câmera. Está na v0.7.0 (versão única em
+vídeos "faceless" para YouTube sem o criador aparecer na câmera. Está na v0.8.0 (versão única em
 `studio/__init__.py`), desenvolvido de forma incremental (v0.1 → v0.3.2 no chat; v0.4 → v0.6 no Claude Code:
 interface Tkinter, interface web e cenas com vídeo de fundo).
 
@@ -59,6 +59,14 @@ do programa.
   `--image-provider`, `--regen`, `--strict-images`, `--no-voice`), lendo a saída em tempo real. Procura canais
   em `../canais`. Cancelar usa `taskkill /T` para matar também o ffmpeg. Aberta por
   `abrir_studio_simples.bat` (usa `.venv\Scripts\pythonw.exe`). Foi aberta e validada na máquina do Renato.
+- Roteiros de IA (v0.8): `guia_roteiro_ia.md` (texto para colar no Claude/ChatGPT/Gemini, servido por
+  `GET /api/guide`), `webui/importer.py` (extrai o JSON do texto colado, valida com `main.validate_script`,
+  grava como arquivo NOVO com `open(..., 'x')`: nunca sobrescreve) e `studio/script_check.py` (avisos por
+  cena/campo: erro, verificar, aviso). Campo `revisar` (lista de textos, por cena ou no roteiro) = itens que uma
+  pessoa precisa conferir; o motor ignora, a interface mostra. Regra de ouro do guia: não inventar dado;
+  sem fonte => `"source": "A VERIFICAR"` + `revisar`. NÃO há chamada a API de LLM no produto (decisão do
+  Renato: comparar os modelos à mão primeiro; "Diretor de IA" por API só depois). **Ao adicionar campo ou valor
+  ao motor, atualize `script_check.py` (SCENE_KEYS etc.) E o guia**: `tests/test_import.py` falha se divergirem.
 - Animação e vertical (v0.7): `studio/chart_anim.py` desenha barras/linha em ASS (`\\clip` animado dentro de
   `\\t`; linha = caminho ida-e-volta com `\\bord` grosso); `layouts.layout_chart` usa o animado por padrão e cai
   para `charts.py` (matplotlib) com `"animate": false` ou barras agrupadas. `studio/ass_helpers.py`

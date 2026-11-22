@@ -218,3 +218,24 @@ textarea.mono { font: 12px/1.45 Consolas, monospace; }
 .gallery .thumb { aspect-ratio: var(--ar, 16 / 9); }
 .player video { max-height: 72vh; object-fit: contain; }
 .popover small.hint { line-height: 1.4; }
+
+/* ---- importar roteiro de IA / avisos ---- */
+.modal.xwide { width: min(940px, calc(100vw - 32px)); max-height: calc(100vh - 40px); overflow-y: auto; }
+.modal-actions .grow { flex: 1; align-self: center; }
+textarea.big { min-height: 180px; }
+.import-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.import-error { background: rgba(248, 113, 113, .12); border: 1px solid var(--err); color: #fecaca; border-radius: 8px; padding: 10px 12px; line-height: 1.5; }
+.import-summary table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; }
+.import-summary th { text-align: left; color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--line); padding: 4px 8px; }
+.import-summary td { padding: 5px 8px; border-bottom: 1px solid rgba(36, 48, 73, .6); }
+.issues ul, .issues-banner ul { margin: 6px 0 0; padding-left: 4px; list-style: none; display: grid; gap: 5px; font-size: 13px; line-height: 1.45; }
+.issues li.erro { color: #fecaca; }
+.issues li.verificar { color: var(--warn); }
+.issues li.aviso { color: var(--muted); }
+.issues-banner { display: block; }
+.issues-banner summary { cursor: pointer; }
+.issues-banner ul { padding: 8px 4px 4px; max-height: 190px; overflow-y: auto; color: var(--text); }
+.issues-banner.has-error { background: rgba(248, 113, 113, .12); color: #fecaca; border-bottom-color: rgba(248, 113, 113, .4); }
+.verify { background: rgba(251, 191, 36, .10); border: 1px solid rgba(251, 191, 36, .35); border-radius: 8px; padding: 10px 12px; display: grid; gap: 6px; color: var(--warn); font-size: 13px; }
+.verify ul { margin: 0; padding-left: 18px; color: var(--text); line-height: 1.45; }
+.verify button { justify-self: start; }

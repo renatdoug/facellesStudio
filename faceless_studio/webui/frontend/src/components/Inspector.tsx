@@ -140,6 +140,16 @@ export default function Inspector({ scene, layout, channel, video, narrationSeco
         </div>
       </label>
 
+      {Array.isArray(scene.revisar) && scene.revisar.length > 0 && (
+        <div className="verify">
+          <b>🔎 Para verificar antes de publicar</b>
+          <ul>{scene.revisar.map((t: string, i: number) => <li key={i}>{t}</li>)}</ul>
+          <button className="ghost" onClick={() => { const next = { ...scene }; delete next.revisar; onChange(next) }}>
+            Marcar como verificado
+          </button>
+        </div>
+      )}
+
       <label className="field">
         <span>Título (capítulo)</span>
         <input value={scene.title ?? ''} onChange={(e) => patch({ title: e.target.value })} />

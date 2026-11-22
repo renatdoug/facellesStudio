@@ -10,9 +10,10 @@ interface Props {
   onNewChannel: () => void
   onNewScript: () => void
   onSettings: () => void
+  onImport: () => void
 }
 
-export default function Sidebar({ version, channels, channel, script, dirty, onPick, onNewChannel, onNewScript, onSettings }: Props) {
+export default function Sidebar({ version, channels, channel, script, dirty, onPick, onNewChannel, onNewScript, onSettings, onImport }: Props) {
   return (
     <nav className="sidebar">
       <div className="brand"><span className="logo">▶</span><div><b>FACELESS</b><small>STUDIO{version ? ` · v${version}` : ''}</small></div></div>
@@ -33,6 +34,7 @@ export default function Sidebar({ version, channels, channel, script, dirty, onP
         ))}
       </div>
       <div className="side-foot">
+        <button className="ghost wide" onClick={onImport}>⬇ Importar roteiro de IA</button>
         <button className="ghost wide" disabled={!channel} onClick={onSettings}>⚙ Chaves de API</button>
       </div>
     </nav>

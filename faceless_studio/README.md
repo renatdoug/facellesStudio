@@ -102,6 +102,16 @@ python -m unittest -v
 
 Os testes de imagem usam um servidor local que imita as APIs: não precisam de internet nem gastam créditos.
 
+## Roteiros escritos por IA (v0.8)
+
+Você pode pedir o roteiro a qualquer IA de chat (Claude, ChatGPT, Gemini) e importá-lo, sem API:
+
+1. Na barra lateral, clique em **⬇ Importar roteiro de IA** e em **Copiar guia para a IA** (ou abra `guia_roteiro_ia.md`).
+2. Cole o guia no chat e preencha o **Pedido** no fim dele (tema, canal/tom, formato 9:16 ou 16:9, duração, dados que você fornece).
+3. Cole de volta a resposta da IA na caixa do Studio. A prévia mostra as cenas, o tempo estimado e os avisos; escolha o canal e clique em **Importar como novo projeto**. Nada existente é alterado (nome repetido vira `-2`).
+
+O guia obriga a IA a **não inventar dados**: números de exemplo vão com `"source": "A VERIFICAR"` e frases de conferência em `"revisar"` (por cena ou no roteiro). Esses itens aparecem num aviso no topo do editor e na caixa "Para verificar antes de publicar" da cena. **Confira tudo antes de publicar**, em especial conteúdo de saúde. Para comparar modelos, use o mesmo pedido nos três e olhe a prévia de cada um.
+
 ## Animações e formato vertical (v0.7)
 
 ```json

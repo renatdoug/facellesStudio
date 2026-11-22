@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from './api'
+import ImportDialog from './components/ImportDialog'
 import Inspector from './components/Inspector'
 import SceneList from './components/SceneList'
 import SettingsDialog from './components/SettingsDialog'
@@ -43,6 +44,7 @@ export default function App() {
   const [noVoice, setNoVoice] = useState(false)
   const [toast, setToast] = useState<{ text: string; kind: 'ok' | 'err' } | null>(null)
   const [settings, setSettings] = useState(false)
+  const [importing, setImporting] = useState(false)
   const offset = useRef(0)
   const logRef = useRef<HTMLPreElement>(null)
 
@@ -235,7 +237,7 @@ export default function App() {
   return (
     <div className="app" style={{ ['--ar' as string]: aspectOf(draft?.resolution) }}>
       <Sidebar version={meta?.version ?? ''} channels={channels} channel={channel} script={scriptName} dirty={dirty}
-               onPick={pick} onNewChannel={newChannel} onNewScript={newScript} onSettings={() => setSettings(true)} />
+               onPick={pick} onNewChannel={newChannel} onNewScript={newScript} onSettings={() => setSettings(true)} onImport={() => setImporting(true)} />
 
       <main className="workspace">
         <header className="topbar">
@@ -268,6 +270,23 @@ export default function App() {
         {missingKey && imageScenes > 0 && (
           <div className="banner">Falta a chave de API do {needsKey[1]} neste canal.
             <button className="ghost" onClick={() => setSettings(true)}>Configurar</button></div>
+        )}
+
+        {(state?.warnings.length ?? 0) > 0 && (
+          <details className={'banner issues-banner' + (state!.warnings.some((w) => w.level === 'erro') ? ' has-error' : '')}>
+            <summary>
+              {(['erro', 'verificar', 'aviso'] as const)
+                .map((lv) => [lv, state!.warnings.filter((w) => w.level === lv).length] as const)
+                .filter(([, n]) => n > 0)
+                .map(([lv, n]) => `${n} ${lv === 'erro' ? 'erro(s) que impedem o vídeo' : lv === 'verificar' ? 'item(ns) para verificar antes de publicar' : 'aviso(s)'}`)
+                .join(' · ')}
+            </summary>
+            <ul>
+              {state!.warnings.map((w, i) => (
+                <li key={i}><b>{w.scene ? `Cena ${w.scene}` : 'Roteiro'}{w.field ? ` · ${w.field}` : ''}</b>: {w.message}</li>
+              ))}
+            </ul>
+          </details>
         )}
 
         {videoProblems.length > 0 && (
@@ -316,6 +335,18 @@ export default function App() {
         {draft && <Timeline scenes={draft.scenes} infos={infos} selected={selected} onSelect={(i) => { setSelected(i); setView('scene') }} />}
       </main>
 
+      {importing && (
+        <ImportDialog channels={channels} currentChannel={channel}
+                      onClose={() => setImporting(false)}
+                      onImported={(ch, sc) => {
+                        setImporting(false)
+                        void (async () => {
+                          await refreshChannels()
+                          await pick(ch, sc)
+                          notify(`Roteiro importado como “${sc.replace(/\.json$/, '')}”. Nada existente foi alterado.`)
+                        })()
+                      }} />
+      )}
       {settings && state && (
         <SettingsDialog channel={channel} keys={state.keys} onClose={() => setSettings(false)}
                         onSaved={(keys) => { setState({ ...state, keys }); notify('Chave salva.') }} />
