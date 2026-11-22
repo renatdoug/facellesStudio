@@ -6,6 +6,7 @@ import SettingsDialog from './components/SettingsDialog'
 import Sidebar from './components/Sidebar'
 import Stage, { type View } from './components/Stage'
 import Timeline from './components/Timeline'
+import VideoSettings, { aspectOf } from './components/VideoSettings'
 import { detectLayout, duplicateScene, fmtTime, newScene } from './scenes'
 import type { Channel, Job, LibraryItem, Meta, SceneInfo, Script, ScriptState, VideoInfo } from './types'
 
@@ -194,6 +195,8 @@ export default function App() {
     if (confirm('Interromper a produção em andamento?')) await api.cancel()
   }
 
+  const setVideoOptions = (patch: Record<string, unknown>) => edit((d) => { Object.assign(d, patch) })
+
   const edit = (fn: (d: Script) => void) => setDraft((d) => { if (!d) return d; const c = clone(d); fn(c); return c })
 
   // ------------------------------------------------------------ derivados
@@ -230,8 +233,8 @@ export default function App() {
   if (!meta && !toast) return <div className="boot">Carregando…</div>
 
   return (
-    <div className="app">
-      <Sidebar channels={channels} channel={channel} script={scriptName} dirty={dirty}
+    <div className="app" style={{ ['--ar' as string]: aspectOf(draft?.resolution) }}>
+      <Sidebar version={meta?.version ?? ''} channels={channels} channel={channel} script={scriptName} dirty={dirty}
                onPick={pick} onNewChannel={newChannel} onNewScript={newScript} onSettings={() => setSettings(true)} />
 
       <main className="workspace">
@@ -241,6 +244,7 @@ export default function App() {
             <small>{draft ? `${draft.channel ?? channel} · ${draft.scenes.length} cenas · ${imageScenes} com imagem` : 'Crie ou escolha um projeto'}</small>
           </div>
           <div className="actions">
+            {draft && <VideoSettings script={draft} onChange={setVideoOptions} />}
             <details className="options">
               <summary>Opções</summary>
               <div className="popover">
@@ -288,7 +292,7 @@ export default function App() {
               onMove={(i, delta) => { edit((d) => { const [s] = d.scenes.splice(i, 1); d.scenes.splice(i + delta, 0, s) }); setSelected(i + delta) }}
               onDuplicate={(i) => { edit((d) => { d.scenes.splice(i + 1, 0, duplicateScene(d.scenes[i], d.scenes)) }); setSelected(i + 1) }}
               onDelete={(i) => { if (confirm('Excluir esta cena?')) { edit((d) => { d.scenes.splice(i, 1) }); setSelected(Math.max(0, i - 1)) } }} />
-            <Stage view={view} setView={setView} scene={scene} info={infos[selected]} scenes={draft.scenes} infos={infos}
+            <Stage aspect={aspectOf(draft.resolution)} view={view} setView={setView} scene={scene} info={infos[selected]} scenes={draft.scenes} infos={infos}
                    preview={state?.outputs.preview ?? null} final={state?.outputs.final ?? null} busy={busy}
                    scenePreview={state?.outputs.scenes[String(selected + 1)] ?? null} previewKind={previewKind}
                    setPreviewKind={setPreviewKind} onScenePreview={(n) => void run('scene', '', n)}

@@ -5,8 +5,9 @@
 Programa em Python que transforma um roteiro em JSON em um vídeo MP4 narrado: voz por IA (edge-tts),
 legendas palavra a palavra em estilo karaokê, cenas com layout adaptado automaticamente ao conteúdo
 (lista, número, gráfico, comparação, citação, imagem), e imagens geradas por IA. Serve para produzir
-vídeos "faceless" para YouTube sem o criador aparecer na câmera. Está na v0.3.2, desenvolvido de forma
-incremental (v0.1 → v0.3.2) em conversas anteriores com apoio do Claude (chat).
+vídeos "faceless" para YouTube sem o criador aparecer na câmera. Está na v0.7.0 (versão única em
+`studio/__init__.py`), desenvolvido de forma incremental (v0.1 → v0.3.2 no chat; v0.4 → v0.6 no Claude Code:
+interface Tkinter, interface web e cenas com vídeo de fundo).
 
 Dono do projeto: Renato Douglas, enfermeiro/coordenador com perfil técnico (Python, dados), cursando
 pós em ML/MLOps. Primeiro canal: "Dados na Saúde".
@@ -56,9 +57,18 @@ do programa.
 - `gui.py` — janela Tkinter antiga (v0.4.0, agora `abrir_studio_simples.bat`), sem dependências pip. NÃO contém lógica de render: monta a linha
   de comando e roda `main.py` como subprocesso (`--script` absoluto, `--images-only`, `--preview`,
   `--image-provider`, `--regen`, `--strict-images`, `--no-voice`), lendo a saída em tempo real. Procura canais
-  em `../canais`. Cancelar usa `taskkill /T` para matar também o ffmpeg. Aberta por `abrir_studio.bat`
-  (usa `.venv\Scripts\pythonw.exe`). Integrada a partir de uma proposta; ainda NÃO foi aberta/validada na
-  máquina do Renato.
+  em `../canais`. Cancelar usa `taskkill /T` para matar também o ffmpeg. Aberta por
+  `abrir_studio_simples.bat` (usa `.venv\Scripts\pythonw.exe`). Foi aberta e validada na máquina do Renato.
+- Animação e vertical (v0.7): `studio/chart_anim.py` desenha barras/linha em ASS (`\\clip` animado dentro de
+  `\\t`; linha = caminho ida-e-volta com `\\bord` grosso); `layouts.layout_chart` usa o animado por padrão e cai
+  para `charts.py` (matplotlib) com `"animate": false` ou barras agrupadas. `studio/ass_helpers.py`
+  (`style`, `ev(min_dur=...)`) é compartilhado; eventos de contagem DEVEM usar `min_dur` pequeno (senão se
+  sobrepõem). `subtitles.caption_metrics()` + `write_scene_ass(font_path=...)` medem a largura real (o tamanho
+  ASS rende texto 16% mais estreito que o do Pillow: `PIL_PER_ASS`). `Ctx.portrait/bottom/src_y` adaptam os
+  layouts ao vertical (legenda sobe para ~78% da altura; conteúdo termina em 68%). Entradas `punch`/`flash`
+  e movimentos novos em `studio/video.py` (`ENTRIES`, `motion_exprs(punch_frames=...)`). `ImageBank(orientation=)`
+  gera imagens no formato do vídeo. `--draft`/`--preview` mantêm o formato em 720p (`draft_resolution`).
+  Versão única: `studio/__init__.py`. Exemplo: `exemplo_shorts.json`. Ainda sem vídeo IA nem personagem animado.
 - Cena de vídeo (v0.6): `"video"` (+ `video_start`/`video_end`) vira o layout `video` (prioridade sobre
   imagem). `studio/video.py`: `prepare_clip()` recorta/enche o quadro/descarta o áudio e guarda em cache em
   `temp/`; `render_video_scene()` faz o loop (`-stream_loop`), sobrepõe a sombra (`visuals.shade_overlay`) e
@@ -138,7 +148,7 @@ o mínimo necessário, com teste de regressão adicionado, antes de reempacotar 
   fornecedor de imagem — o JSON ainda está com `"provider": "pollinations"` (conferido em 22/11/2026);
   para testar o Gemini, escolher "gemini" no seletor da interface (ou `--image-provider gemini`) e
   confirmar que `GEMINI_API_KEY` está no `.env` do canal e que a geração funciona sem o watermark.
-- Interface v0.4.0 abriu na máquina do Renato e rodou "Gerar imagens" (cache do Pollinations) com log em
+- Janela Tkinter (v0.4.0) abriu na máquina do Renato e rodou "Gerar imagens" (cache do Pollinations) com log em
   tempo real, e a "Prévia de 2 cenas" gerou `output/preview.mp4` (16,9 s, 1280x720, 11 s de render).
   Ainda não testados: vídeo completo, Cancelar e o Gemini.
 - Interface web v0.5 construída a pedido do Renato (ele não gostou da Tkinter). Verificada no navegador

@@ -1,1 +1,1 @@
-"""Interface web local do Faceless Studio (v0.5): API FastAPI + front-end React em webui/frontend."""
+"""Interface web local do Faceless Studio: API FastAPI + front-end React em webui/frontend."""

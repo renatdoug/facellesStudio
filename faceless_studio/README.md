@@ -102,6 +102,20 @@ python -m unittest -v
 
 Os testes de imagem usam um servidor local que imita as APIs: não precisam de internet nem gastam créditos.
 
+## Animações e formato vertical (v0.7)
+
+```json
+{"resolution": "1080x1920", "subtitles": "pop", "default_transition": "punch", "scenes": [ ... ]}
+```
+
+- **Formato**: `resolution` `1920x1080` (padrão), `1080x1920` (Shorts/Reels/TikTok) ou `1080x1080`. No vertical a legenda sobe para ficar acima da faixa inferior do Shorts e as imagens por IA são geradas em 9:16. Exemplo completo e sem imagens de IA: `exemplo_shorts.json`.
+- **Legendas** (`subtitles`): `karaoke` (padrão), `pop` (blocos grandes em maiúsculas que saltam), `box` (sobre caixa colorida), `simple`, `off`.
+- **Entrada da cena** (`transition`, por cena; `default_transition` para todas): `cut`, `fade`, `punch` (zoom rápido), `flash` (clarão branco).
+- **Movimento** (`motion`): `zoom_in`, `zoom_out`, `pan_left`, `pan_right`, `pan_up`, `pan_down`, `shake`, `static`.
+- **Gráficos animados** (padrão): barras crescem e a linha se desenha. Em `chart`: `"on_words": ["respiratórias", "cardiovasculares", ...]` faz cada barra entrar quando a palavra é dita; `"orient": "horizontal"|"vertical"` força a orientação (no vertical, rótulos longos já viram barras horizontais sozinhos); `"zero": true` força o zero no eixo da linha; `"animate": false` usa o gráfico estático.
+- **Prévias** (`--draft`, `--preview`, "Prévia desta cena") saem em 720p no mesmo formato do vídeo.
+- Ainda não há vídeo gerado por IA nem personagens animados; o movimento vem de imagens, vídeos seus e das animações acima.
+
 ## Vídeo como fundo (v0.6)
 
 Além de imagem parada com zoom, uma cena pode usar um **clipe de vídeo** como fundo:

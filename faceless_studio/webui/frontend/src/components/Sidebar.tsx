@@ -1,6 +1,7 @@
 import type { Channel } from '../types'
 
 interface Props {
+  version: string
   channels: Channel[]
   channel: string
   script: string
@@ -11,10 +12,10 @@ interface Props {
   onSettings: () => void
 }
 
-export default function Sidebar({ channels, channel, script, dirty, onPick, onNewChannel, onNewScript, onSettings }: Props) {
+export default function Sidebar({ version, channels, channel, script, dirty, onPick, onNewChannel, onNewScript, onSettings }: Props) {
   return (
     <nav className="sidebar">
-      <div className="brand"><span className="logo">▶</span><div><b>FACELESS</b><small>STUDIO · v0.5</small></div></div>
+      <div className="brand"><span className="logo">▶</span><div><b>FACELESS</b><small>STUDIO{version ? ` · v${version}` : ''}</small></div></div>
       <div className="panel-title"><span>Projetos</span><button className="ghost" onClick={onNewChannel}>+ Canal</button></div>
       <div className="channels">
         {channels.length === 0 && <p className="empty small">Nenhum canal ainda. Crie o primeiro.</p>}

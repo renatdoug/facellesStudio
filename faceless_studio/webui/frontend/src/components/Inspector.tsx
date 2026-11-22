@@ -2,6 +2,13 @@ import { useEffect, useState } from 'react'
 import { KINDS, changeKind, fmtTime, hasContent } from '../scenes'
 import type { LibraryItem, Scene, VideoInfo } from '../types'
 import LibraryDialog from './LibraryDialog'
+import { ENTRIES } from './VideoSettings'
+
+const MOTIONS: [string, string][] = [
+  ['auto', 'Automático'], ['zoom_in', 'Aproximar'], ['zoom_out', 'Afastar'], ['pan_left', 'Deslizar ←'],
+  ['pan_right', 'Deslizar →'], ['pan_up', 'Subir ↑'], ['pan_down', 'Descer ↓'], ['shake', 'Câmera na mão'],
+  ['static', 'Parado'],
+]
 
 interface Props {
   scene: Scene
@@ -170,17 +177,44 @@ export default function Inspector({ scene, layout, channel, video, narrationSeco
       )}
       {layout === 'list' && <ItemsEditor items={scene.items ?? []} onChange={(items) => patch({ items })} />}
       {layout === 'number' && <JsonField label="Número (JSON)" value={scene.number} onValid={(v) => patch({ number: v })} />}
-      {layout === 'chart' && <JsonField label="Gráfico (JSON)" value={scene.chart} onValid={(v) => patch({ chart: v })} />}
+      {layout === 'chart' && (
+        <>
+          <label className="check">
+            <input type="checkbox" checked={scene.chart?.animate !== false}
+                   onChange={(e) => patch({ chart: { ...scene.chart, animate: e.target.checked } })} />
+            Animar o gráfico (barras crescem, linha se desenha)
+          </label>
+          <JsonField label="Gráfico (JSON)" value={scene.chart} onValid={(v) => patch({ chart: v })} />
+        </>
+      )}
       {layout === 'compare' && <JsonField label="Comparação (JSON)" value={scene.compare} onValid={(v) => patch({ compare: v })} />}
       {layout === 'quote' && <JsonField label="Citação (JSON)" value={scene.quote} onValid={(v) => patch({ quote: v })} />}
 
       <label className="field">
-        <span>Transição de entrada</span>
-        <select value={scene.transition ?? 'cut'} onChange={(e) => patch({ transition: e.target.value })}>
-          <option value="cut">Corte seco</option>
-          <option value="fade">Fade</option>
+        <span>Entrada da cena</span>
+        <select value={scene.transition ?? ''} onChange={(e) => {
+          const next = { ...scene }
+          if (e.target.value) next.transition = e.target.value
+          else delete next.transition
+          onChange(next)
+        }}>
+          <option value="">Padrão do vídeo</option>
+          {ENTRIES.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
         </select>
       </label>
+      {layout !== 'video' && (
+        <label className="field">
+          <span>Movimento da câmera</span>
+          <select value={scene.motion ?? 'auto'} onChange={(e) => {
+            const next = { ...scene }
+            if (e.target.value === 'auto') delete next.motion
+            else next.motion = e.target.value
+            onChange(next)
+          }}>
+            {MOTIONS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+          </select>
+        </label>
+      )}
     </div>
   )
 }

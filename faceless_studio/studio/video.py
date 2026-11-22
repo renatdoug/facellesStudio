@@ -6,41 +6,58 @@ from .util import StudioError, media_duration, run
 
 MIN_CLIP = 0.5  # segundos: trechos menores que isso não servem de fundo
 
-MOTIONS = ('zoom_in', 'zoom_out', 'pan_left', 'pan_right', 'static')
+MOTIONS = ('zoom_in', 'zoom_out', 'pan_left', 'pan_right', 'pan_up', 'pan_down', 'shake', 'static')
 AUTO_CARD = ('zoom_in', 'zoom_out')  # cartões têm texto na margem: sem pan lateral
 AUTO_IMAGE = ('zoom_in', 'pan_right', 'zoom_out', 'pan_left')
+AUTO_PORTRAIT = ('zoom_in', 'pan_up', 'zoom_out', 'pan_down')  # no vertical, o deslize lateral rende pouco
+
+# Entradas de cena ("transition"): cut = corte seco; fade = escurece entre cenas; punch = a cena
+# "estoura" com um zoom rápido; flash = clarão branco.
+ENTRIES = ('cut', 'fade', 'punch', 'flash')
+PUNCH_S, PUNCH_ZOOM, FLASH_S = 0.30, 0.12, 0.25
 
 
-def pick_motion(requested, idx, kind):
+def pick_motion(requested, idx, kind, portrait=False):
     if requested in MOTIONS:
         return requested
     if kind == 'text':  # textos animados ficam parados; o fundo aproxima devagar
         return 'zoom_in'
-    seq = AUTO_CARD if kind == 'card' else AUTO_IMAGE
+    seq = AUTO_CARD if kind == 'card' else AUTO_PORTRAIT if portrait else AUTO_IMAGE
     return seq[(idx - 1) % len(seq)]
 
 
-def motion_exprs(motion, frames, amount):
+def motion_exprs(motion, frames, amount, punch_frames=0):
     """Expressões do zoompan. Usam `on` (nº do quadro de saída), então o movimento
-    é contínuo do início ao fim da cena."""
+    é contínuo do início ao fim da cena. `punch_frames` > 0 soma um zoom rápido (que desacelera)
+    nos primeiros quadros."""
     n = max(1, frames - 1)
     cx, cy = '(iw-iw/zoom)/2', '(ih-ih/zoom)/2'
+    p = f'+{PUNCH_ZOOM}*pow(max(0,1-on/{punch_frames}),2)' if punch_frames else ''
     if motion == 'zoom_in':
-        return f'1+{amount}*on/{n}', cx, cy
+        return f'1+{amount}*on/{n}{p}', cx, cy
     if motion == 'zoom_out':
-        return f'1+{amount}-{amount}*on/{n}', cx, cy
+        return f'1+{amount}-{amount}*on/{n}{p}', cx, cy
     if motion == 'pan_right':
-        return f'{1 + amount}', f'(iw-iw/zoom)*on/{n}', cy
+        return f'{1 + amount}{p}', f'(iw-iw/zoom)*on/{n}', cy
     if motion == 'pan_left':
-        return f'{1 + amount}', f'(iw-iw/zoom)*(1-on/{n})', cy
+        return f'{1 + amount}{p}', f'(iw-iw/zoom)*(1-on/{n})', cy
+    if motion == 'pan_up':
+        return f'{1 + amount}{p}', cx, f'(ih-ih/zoom)*(1-on/{n})'
+    if motion == 'pan_down':
+        return f'{1 + amount}{p}', cx, f'(ih-ih/zoom)*on/{n}'
+    if motion == 'shake':  # câmera na mão: tremor pequeno, com folga de zoom para não mostrar borda
+        return (f'{1 + max(amount * 0.6, 0.04)}{p}', f'{cx}+sin(on/2.3)*iw*0.006',
+                f'{cy}+cos(on/1.7)*ih*0.006')
+    if p:
+        return f'1{p}', cx, cy
     return '1', '0', '0'
 
 
 def render_scene(image, ass_name, out, frames, w, h, fps, motion, fade_in, fade_out, fade_s,
-                 cwd, amount=0.08, upscale=3, preset='veryfast', crf=20):
+                 cwd, amount=0.08, upscale=3, preset='veryfast', crf=20, entry='cut'):
     """Uma imagem -> clipe de vídeo sem áudio, com duração exata de `frames` quadros.
     A imagem é ampliada uma vez (upscale) para o zoom ficar suave, sem tremer."""
-    z, x, y = motion_exprs(motion, frames, amount)
+    z, x, y = motion_exprs(motion, frames, amount, round(PUNCH_S * fps) if entry == 'punch' else 0)
     seconds = frames / fps
     vf = [f'scale={w * upscale}:{h * upscale}:flags=lanczos',
           f"zoompan=z='{z}':x='{x}':y='{y}':d={frames}:s={w}x{h}:fps={fps}",
@@ -48,6 +65,8 @@ def render_scene(image, ass_name, out, frames, w, h, fps, motion, fade_in, fade_
           f'ass={ass_name}:fontsdir=fonts']
     if fade_in:
         vf.append(f'fade=t=in:st=0:d={fade_s}')
+    elif entry == 'flash':
+        vf.append(f'fade=t=in:st=0:d={FLASH_S}:color=white')
     if fade_out:
         vf.append(f'fade=t=out:st={max(0, seconds - fade_s):.3f}:d={fade_s}')
     vf.append('format=yuv420p')
@@ -90,14 +109,21 @@ def prepare_clip(src, dest_dir, idx, w, h, fps, start=None, end=None, preset='ve
 
 
 def render_video_scene(clip, shade, ass_name, out, frames, w, h, fps, fade_in, fade_out, fade_s,
-                       cwd, preset='veryfast', crf=20):
+                       cwd, preset='veryfast', crf=20, entry='cut'):
     """Clipe já preparado (prepare_clip) -> cena com `frames` quadros exatos. Se o trecho for mais
     curto que a narração ele se repete em loop; se for mais longo, é cortado. `clip`, `shade` e
     `ass_name` são nomes relativos a `cwd`."""
     seconds = frames / fps
-    chain = ['[0:v][1:v]overlay=0:0:format=auto', f'ass={ass_name}:fontsdir=fonts', 'setsar=1']
+    if entry == 'punch':  # ampliação rápida no início, que desacelera até o tamanho normal
+        k = f'(1+{PUNCH_ZOOM}*pow(max(0,1-t/{PUNCH_S}),2))'
+        base = f"[0:v]scale=w='iw*{k}':h='ih*{k}':eval=frame,crop={w}:{h}[b];[b][1:v]overlay=0:0:format=auto"
+    else:
+        base = '[0:v][1:v]overlay=0:0:format=auto'
+    chain = [base, f'ass={ass_name}:fontsdir=fonts', 'setsar=1']
     if fade_in:
         chain.append(f'fade=t=in:st=0:d={fade_s}')
+    elif entry == 'flash':
+        chain.append(f'fade=t=in:st=0:d={FLASH_S}:color=white')
     if fade_out:
         chain.append(f'fade=t=out:st={max(0, seconds - fade_s):.3f}:d={fade_s}')
     chain.append('format=yuv420p')

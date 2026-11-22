@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Faceless Studio v0.3 — roteiro JSON -> vídeo MP4 narrado, legendado, com cenas que mudam
+"""Faceless Studio — roteiro JSON -> vídeo MP4 narrado, legendado, com cenas que mudam
 de formato conforme o conteúdo e imagens geradas por IA.
 
 Uso rápido:
@@ -11,12 +11,13 @@ Uso rápido:
 import argparse
 import json
 import math
+import re
 import shutil
 import sys
 import time
 from pathlib import Path
 
-from studio import audio, images_ai, layouts, subtitles, video, visuals, voice
+from studio import __version__, audio, images_ai, layouts, subtitles, video, visuals, voice
 from studio.util import StudioError, check_ffmpeg, ensure_dir
 
 ROOT = Path(__file__).resolve().parent
@@ -32,8 +33,10 @@ def parse_args():
     p.add_argument('--rate', help='Velocidade da voz, ex.: +8%%')
     p.add_argument('--res', help='Resolução, ex.: 1920x1080')
     p.add_argument('--music', help='Trilha (substitui a do roteiro). "none" desliga.')
-    p.add_argument('--subtitles', choices=['karaoke', 'simple', 'off'])
-    p.add_argument('--preview', action='store_true', help='Só as 2 primeiras cenas, em 1280x720')
+    p.add_argument('--subtitles', choices=list(subtitles.CAPTION_MODES))
+    p.add_argument('--preview', action='store_true', help='Só as 2 primeiras cenas, em rascunho (720p)')
+    p.add_argument('--draft', action='store_true',
+                   help='Rascunho: 720p mantendo o formato do vídeo (horizontal, vertical ou quadrado)')
     p.add_argument('--scenes', help='Intervalo de cenas, ex.: 3-5')
     p.add_argument('--no-voice', action='store_true', help='Teste offline: áudio mudo (não publicar)')
     p.add_argument('--force-voice', action='store_true', help='Gera a narração de novo')
@@ -43,6 +46,7 @@ def parse_args():
     p.add_argument('--strict-images', action='store_true', help='Interrompe se uma imagem falhar '
                                                                 '(padrão: usa cartão no lugar e avisa)')
     p.add_argument('--preset', default='veryfast', help='Preset do x264')
+    p.add_argument('--version', action='version', version=f'Faceless Studio {__version__}')
     return p.parse_args()
 
 
@@ -60,6 +64,12 @@ def validate_script(data):
     """Valida o conteúdo de um roteiro já carregado (usado também pela interface web)."""
     if not isinstance(data, dict):
         raise StudioError('O roteiro precisa ser um objeto JSON.')
+    if data.get('default_transition', 'cut') not in video.ENTRIES:
+        raise StudioError('"default_transition" deve ser ' + ', '.join(video.ENTRIES) + '.')
+    if data.get('subtitles', 'karaoke') not in subtitles.CAPTION_MODES:
+        raise StudioError('"subtitles" deve ser ' + ', '.join(subtitles.CAPTION_MODES) + '.')
+    if 'resolution' in data and not re.fullmatch(r'\d{3,5}x\d{3,5}', str(data['resolution']).lower()):
+        raise StudioError('"resolution" deve ter o formato LARGURAxALTURA, ex.: 1920x1080 ou 1080x1920.')
     scenes = data.get('scenes')
     if not isinstance(scenes, list) or not scenes:
         raise StudioError('O roteiro precisa ter uma lista "scenes" com pelo menos uma cena.')
@@ -68,8 +78,8 @@ def validate_script(data):
             raise StudioError(f'A cena {n} precisa ser um objeto.')
         if not str(s.get('narration', '')).strip():
             raise StudioError(f'A cena {n} está sem "narration".')
-        if s.get('transition', 'cut') not in ('cut', 'fade'):
-            raise StudioError(f'Cena {n}: "transition" deve ser "cut" ou "fade".')
+        if s.get('transition', 'cut') not in video.ENTRIES:
+            raise StudioError(f'Cena {n}: "transition" deve ser ' + ', '.join(video.ENTRIES) + '.')
         if s.get('motion', 'auto') not in ('auto',) + video.MOTIONS:
             raise StudioError(f'Cena {n}: "motion" deve ser auto, ' + ', '.join(video.MOTIONS) + '.')
         layouts.detect_layout(s)  # valida "layout"
@@ -82,6 +92,13 @@ def validate_script(data):
         if s.get('video') is not None and not isinstance(s['video'], str):
             raise StudioError(f'Cena {n}: "video" deve ser o caminho de um arquivo de vídeo.')
     return data
+
+
+def draft_resolution(resolution):
+    """720p do mesmo formato: 1920x1080 -> 1280x720, 1080x1920 -> 720x1280, 1080x1080 -> 720x720."""
+    w, h = map(int, str(resolution).lower().split('x'))
+    k = 720 / min(w, h)
+    return f'{round(w * k / 2) * 2}x{round(h * k / 2) * 2}'
 
 
 def select_scenes(scenes, args):
@@ -115,6 +132,11 @@ def write_chapters(path, starts, total):
     return warn
 
 
+def entry_of(scene, data):
+    """Entrada da cena: o "transition" dela ou o "default_transition" do roteiro."""
+    return scene.get('transition') or data.get('default_transition') or 'cut'
+
+
 def scene_id(idx, scene):
     return str(scene.get('id') or f'{idx:02}')
 
@@ -124,7 +146,8 @@ def resolve_images(chosen, data, script_dir, args, w, h, fonts, out_dir):
     settings = dict(data.get('images') or {})
     if args.image_provider:
         settings['provider'] = args.image_provider
-    bank = images_ai.ImageBank(script_dir, settings, install_dir=ROOT)
+    bank = images_ai.ImageBank(script_dir, settings, install_dir=ROOT,
+                               orientation=images_ai.orientation_of(w, h))
     regen = {int(x) for x in args.regen.split(',')} if args.regen else set()
     resolved, review, warnings = {}, [], []
     todo = [(i, s) for i, s in chosen if layouts.detect_layout(s) == 'image']
@@ -190,7 +213,8 @@ def main():
     images_ai.load_dotenv(project_dir / '.env')
     images_ai.load_dotenv(ROOT / '.env')
 
-    res = args.res or ('1280x720' if args.preview else data.get('resolution', '1920x1080'))
+    full_res = data.get('resolution', '1920x1080')
+    res = args.res or (draft_resolution(full_res) if (args.preview or args.draft) else full_res)
     w, h = map(int, res.lower().split('x'))
     if w % 2 or h % 2:
         raise StudioError('A resolução precisa ter largura e altura pares.')
@@ -243,8 +267,9 @@ def main():
         label = scene.get('title') or scene.get('headline', '')
         print(f'[{pos + 1}/{len(chosen)}] Cena {idx} ({layout}): {label}', flush=True)
         next_scene = chosen[pos + 1][1] if pos + 1 < len(chosen) else None
-        fade_in = pos == 0 or scene.get('transition') == 'fade'
-        fade_out = next_scene is None or next_scene.get('transition') == 'fade'
+        entry = entry_of(scene, data)
+        fade_in = pos == 0 or entry == 'fade'
+        fade_out = next_scene is None or entry_of(next_scene, data) == 'fade'
 
         text = scene['narration'].strip()
         if args.no_voice:
@@ -281,7 +306,8 @@ def main():
 
         ass = work / f'legendas_{idx:02}.ass'
         subtitles.write_scene_ass(ass, shifted, scene.get('callouts'), total, w, h, font_name, accent,
-                                  sub_mode, extra_styles=styles, extra_events=lay_events)
+                                  sub_mode, extra_styles=styles, extra_events=lay_events,
+                                  font_path=fonts['bold'])
         srt.extend(subtitles.srt_blocks(shifted, clock))
         if scene.get('chapter'):
             chapters.append((clock, scene['chapter']))
@@ -295,11 +321,11 @@ def main():
             shade = work / f'sombra_{idx:02}.png'
             visuals.shade_overlay(w, h, darken_top=bool(scene.get('overlay_title'))).save(shade)
             video.render_video_scene(piece.name, shade.name, ass.name, clip.name, frames, w, h, fps,
-                                     fade_in, fade_out, FADE, cwd=work, preset=args.preset)
+                                     fade_in, fade_out, FADE, cwd=work, preset=args.preset, entry=entry)
         else:
-            motion = video.pick_motion(scene.get('motion', 'auto'), idx, kind)
+            motion = video.pick_motion(scene.get('motion', 'auto'), idx, kind, portrait=h > w)
             video.render_scene(img.name, ass.name, clip.name, frames, w, h, fps, motion, fade_in, fade_out,
-                               FADE, cwd=work, amount=amount, preset=args.preset)
+                               FADE, cwd=work, amount=amount, preset=args.preset, entry=entry)
         clips.append(clip)
         wavs.append(wav)
         clock += total

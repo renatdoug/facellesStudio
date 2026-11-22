@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.7.0 — animações e formato vertical
+
+Animação (sem custo por vídeo, tudo feito pelo próprio motor):
+- **Gráficos animados** (`studio/chart_anim.py`, desenhados em ASS): barras (vertical e horizontal) crescem do eixo com o valor subindo junto; linhas se desenham da esquerda para a direita e cada ponto "salta" quando a linha chega nele. As barras podem entrar na palavra da narração (`"on_words"`, uma por rótulo; palavra que não é dita entra logo após a anterior). `"animate": false` volta ao gráfico estático (matplotlib), que também continua para barras agrupadas.
+- **Legendas animadas**: novos estilos `"subtitles": "pop"` (blocos curtos e grandes em maiúsculas que saltam, palavra falada em destaque) e `"box"` (o mesmo sobre caixa colorida), além de `karaoke`, `simple` e `off`.
+- **Entradas de cena** (`"transition"` por cena ou `"default_transition"` no roteiro): `punch` (zoom rápido que desacelera), `flash` (clarão branco), `fade` e `cut`. Funcionam em imagens, textos e vídeos.
+- **Movimentos de câmera** novos: `pan_up`, `pan_down` e `shake` (câmera na mão). No vertical o automático usa subir/descer em vez de deslizar de lado.
+
+Formato vertical (9:16) e quadrado (1:1) — `"resolution": "1080x1920"`:
+- Legendas medidas com a fonte de verdade (nenhum bloco passa da largura; palavra isolada larga demais encolhe só aquele bloco) e posicionadas acima da faixa inferior ocupada pela interface do Shorts.
+- Layouts conscientes do formato: lista encolhe a fonte para caber, "Fonte:" quebra em 2 linhas, número e comparação respeitam a área útil, gráfico de barras com rótulos longos vira horizontal automaticamente.
+- Imagens por IA são geradas no formato do vídeo (OpenAI 1024x1536, Gemini 9:16, Pollinations 1080x1920, ComfyUI 768x1344); trocar o formato regera as imagens (cache por formato).
+- Prévias (`--preview`, `--draft` e "Prévia desta cena") mantêm o formato do vídeo em 720p. Antes, a prévia de um roteiro vertical saía horizontal.
+
+Correções encontradas ao testar:
+- A contagem do número criava eventos de legenda de 0,05 s esticados para 0,2 s, que se sobrepunham; agora não há sobreposição.
+- Linha: escala automática (sem forçar o zero), marcas redondas no eixo e rótulos dos pontos só quando cabem.
+
+Interface web: menu **Vídeo** (formato, legendas, entrada padrão), **Entrada da cena** e **Movimento da câmera** por cena, "Animar o gráfico", tela e galeria na proporção do vídeo. Exemplo pronto: `exemplo_shorts.json`.
+Versão única em `studio/__init__.py`. 31 testes novos (total: 85), incluindo uma renderização vertical real que confere o crescimento das barras e o flash.
+
 ## v0.6.0 — vídeo como fundo da cena
 
 - Novo tipo de cena **vídeo**: `"video": "assets/media/clipe.mp4"` (caminho relativo à pasta do roteiro, ou absoluto). O clipe enche o quadro 16:9 (corte central, sem barras), o áudio original é descartado e a narração, a trilha, as legendas karaokê e o título opcional (`overlay_title`) continuam por cima, com o mesmo escurecimento da base usado nas imagens.
@@ -10,6 +31,7 @@
 - Interface web: chip **Vídeo** (e **Vídeo IA**, desativado, "em breve"), painel de mídia da cena com miniatura, duração, início/fim e aviso de loop/corte; **biblioteca de vídeos por canal** (`assets/media`: importar, reutilizar, apagar); **Prévia desta cena** (720p, só a cena escolhida, em `output/cena_NN.mp4`); aviso quando uma cena de vídeo está sem arquivo.
 - API: `GET/PUT/DELETE /api/channels/{canal}/library`. Importação em streaming (limite de 4 GB, só extensões de vídeo, nome sanitizado, nunca sobrescreve, valida com ffprobe).
 - 16 testes novos (total: 53), incluindo uma renderização real com FFmpeg (loop, corte, áudio descartado, vídeo em movimento).
+- Versão única em `studio/__init__.py` (`__version__`): aparece em `python main.py --version`, em `/api/meta` e no canto da barra lateral; `package.json` alinhado (0.6.0).
 - Arquitetura para o futuro: um fornecedor de vídeo por IA só precisa gravar um MP4 em `assets/media` e preencher `video`; nada mais no motor muda. Ainda não implementado.
 
 ## v0.5.0 — interface web

@@ -42,6 +42,11 @@ def env(tmp_path):
     return client, channels
 
 
+def test_meta_informa_a_versao(env):
+    from studio import __version__
+    assert env[0].get('/api/meta').json()['version'] == __version__
+
+
 def test_host_externo_e_origem_estranha_sao_bloqueados(env):
     client, _ = env
     assert client.get('/api/channels', headers={'host': 'evil.example'}).status_code == 403
@@ -198,7 +203,7 @@ def test_nome_seguro_de_arquivo():
 
 def test_build_command_cena_unica():
     cmd = build_command('py', 'main.py', 'r.json', 'scene', scene=3, no_voice=True)
-    assert cmd == ['py', '-u', 'main.py', '--script', 'r.json', '--scenes', '3-3', '--res', '1280x720',
+    assert cmd == ['py', '-u', 'main.py', '--script', 'r.json', '--scenes', '3-3', '--draft',
                    '--strict-images', '--no-voice', '--output', 'output/cena_03.mp4']
     for bad in (None, 0, -1, True, '2'):
         with pytest.raises(JobError):

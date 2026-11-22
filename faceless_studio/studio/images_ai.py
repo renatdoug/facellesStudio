@@ -116,7 +116,7 @@ def gen_gemini(prompt, cfg, seed):
     key = _need_key('GEMINI_API_KEY')
     base = os.environ.get('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com').rstrip('/')
     model = cfg['model']
-    img = {'aspectRatio': '16:9'}
+    img = {'aspectRatio': cfg.get('aspect', '16:9')}
     if cfg.get('image_size') and 'lite' not in model:
         img['imageSize'] = cfg['image_size']
     contents = [{'parts': [{'text': prompt + '. Widescreen 16:9 composition.'}]}]
@@ -214,6 +214,20 @@ def gen_comfyui(prompt, cfg, seed, project_dir='.', install_dir=None):
     raise ImageGenError('Tempo esgotado esperando o ComfyUI.')
 
 
+def orientation_of(w, h):
+    """'portrait' (9:16), 'square' (1:1) ou 'landscape' (16:9), pelo formato do vídeo."""
+    ratio = w / h
+    return 'portrait' if ratio < 0.83 else 'square' if ratio < 1.2 else 'landscape'
+
+
+# Ajustes por formato: o padrão (DEFAULTS) é 16:9. Valores do roteiro ("images") continuam mandando.
+ORIENTATION_CFG = {
+    'portrait': {'openai': {'size': '1024x1536'}, 'gemini': {'aspect': '9:16'},
+                 'pollinations': {'width': 1080, 'height': 1920}, 'comfyui': {'width': 768, 'height': 1344}},
+    'square': {'openai': {'size': '1024x1024'}, 'gemini': {'aspect': '1:1'},
+               'pollinations': {'width': 1080, 'height': 1080}, 'comfyui': {'width': 1024, 'height': 1024}},
+}
+
 PROVIDERS = {'openai': gen_openai, 'gemini': gen_gemini, 'pollinations': gen_pollinations,
              'comfyui': gen_comfyui}
 
@@ -224,7 +238,7 @@ class ImageBank:
     """Guarda as imagens geradas em assets/generated e lembra qual arquivo pertence a cada cena.
     Só gera de novo quando o prompt/estilo/fornecedor mudam ou quando você pede (--regen)."""
 
-    def __init__(self, project_dir, settings, install_dir=None):
+    def __init__(self, project_dir, settings, install_dir=None, orientation='landscape'):
         self.project_dir = Path(project_dir)
         self.install_dir = Path(install_dir) if install_dir else self.project_dir
         self.dir = self.project_dir / 'assets' / 'generated'
@@ -242,6 +256,7 @@ class ImageBank:
         self.style = settings.pop('style', '')
         self.base_seed = int(settings.pop('seed', 1234))
         self.cfg = dict(DEFAULTS.get(self.provider, {}))
+        self.cfg.update(ORIENTATION_CFG.get(orientation, {}).get(self.provider, {}))
         self.cfg.update(settings)
 
     def full_prompt(self, prompt):

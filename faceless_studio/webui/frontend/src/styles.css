@@ -211,3 +211,10 @@ textarea.mono { font: 12px/1.45 Consolas, monospace; }
 .lib-item figcaption { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; padding: 8px 10px; }
 .lib-item figcaption b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 .lib-item figcaption small { color: var(--muted); }
+
+/* ---- formato do vídeo (vertical / quadrado) ---- */
+.canvas.tall { max-width: min(100%, 330px); max-height: 62vh; margin: 0 auto; }
+.canvas-wrap:has(.canvas.tall) { max-width: 520px; }
+.gallery .thumb { aspect-ratio: var(--ar, 16 / 9); }
+.player video { max-height: 72vh; object-fit: contain; }
+.popover small.hint { line-height: 1.4; }

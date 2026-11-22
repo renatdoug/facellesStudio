@@ -16,6 +16,7 @@ from pydantic import BaseModel
 import main as engine
 from studio import layouts
 from studio.util import StudioError
+from studio import __version__
 from webui import library
 from webui.jobs import PROVIDERS, JobError, JobManager
 
@@ -149,7 +150,7 @@ def create_app(channels_dir, install_dir, jobs: JobManager | None = None, dist_d
     # ---------------------------------------------------------------- canais
     @app.get('/api/meta')
     def meta():
-        return {'providers': list(PROVIDERS), 'layouts': list(layouts.LAYOUTS),
+        return {'version': __version__, 'providers': list(PROVIDERS), 'layouts': list(layouts.LAYOUTS),
                 'busy': (jobs.snapshot() or {}).get('status') == 'running'}
 
     @app.get('/api/channels')

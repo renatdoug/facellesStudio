@@ -77,13 +77,15 @@ LINK_WORDS = {'a', 'à', 'ao', 'as', 'às', 'o', 'os', 'e', 'é', 'de', 'da', 'd
               'que', 'se', 'ou', 'seu', 'sua', 'mais', 'muito', 'entre', 'sobre', 'como'}
 
 
-def chunk_words(words, max_words=7, max_chars=38):
+def chunk_words(words, max_words=7, max_chars=38, fits=None):
     """Agrupa palavras em blocos de uma linha, preferindo quebrar após pontuação
-    e sem deixar artigo/preposição pendurado no fim do bloco."""
+    e sem deixar artigo/preposição pendurado no fim do bloco. `fits(texto)` (opcional) confirma
+    que o bloco cabe na largura medindo a fonte de verdade."""
     chunks, cur = [], []
     for w in words:
         candidate = ' '.join(x.text for x in cur + [w])
-        if cur and (len(cur) >= max_words or len(candidate) > max_chars):
+        too_long = len(candidate) > max_chars or (fits is not None and not fits(candidate))
+        if cur and (len(cur) >= max_words or too_long):
             carry = []
             while len(cur) > 2 and cur[-1].text.lower() in LINK_WORDS:
                 carry.insert(0, cur.pop())
@@ -129,13 +131,20 @@ def ass_color(rgb, alpha=0):
     return f'&H{alpha:02X}{b:02X}{g:02X}{r:02X}'
 
 
-def _karaoke_text(chunk):
+def _karaoke_text(chunk, caps=False):
     parts = []
     for k, w in enumerate(chunk):
         nxt = chunk[k + 1].start if k + 1 < len(chunk) else w.end
         cs = max(1, round((nxt - w.start) * 100))
-        parts.append(f'{{\\k{cs}}}{esc(w.text)}')
+        parts.append(f'{{\\k{cs}}}{esc(w.text.upper() if caps else w.text)}')
     return ' '.join(parts)
+
+
+CAPTION_MODES = ('karaoke', 'simple', 'pop', 'box', 'off')
+PIL_PER_ASS = 1 / 1.16  # igual a 1/ass_helpers.ASS_SCALE: um tamanho ASS rende texto 16% mais estreito que o do Pillow
+# "pop": blocos curtos e grandes que saltam na tela, palavra falada em destaque (estilo Shorts/TikTok);
+# "box": o mesmo, sobre uma caixa colorida.
+POP_TAGS = '{\\fscx70\\fscy70\\t(0,100,\\fscx110\\fscy110)\\t(100,200,\\fscx100\\fscy100)}'
 
 
 def find_word_time(words, target, default):
@@ -146,14 +155,42 @@ def find_word_time(words, target, default):
     return default
 
 
+def caption_metrics(w, h, mode):
+    """Tamanho da fonte, margem vertical e limites de bloco da legenda, conforme formato e estilo."""
+    portrait = h > w
+    big = mode in ('pop', 'box')
+    if portrait:
+        fs = round(w * (0.088 if big else 0.072))
+        margin_v = round(h * 0.22)  # acima da faixa inferior ocupada pela interface do Shorts
+    else:
+        fs = round(h * (0.070 if big else 0.052))
+        margin_v = round(h * (0.08 if big else 0.055))
+    margin = int(w * 0.075)
+    pad = round(fs * 0.26) if mode == 'box' else 0
+    avail = w - 2 * margin - 2 * pad
+    max_chars = max(6, int(avail / (fs * (0.72 if big else 0.62))))  # maiúsculas são mais largas
+    if big:
+        max_words = 3 if portrait else 4
+    else:
+        max_words, max_chars = 7, min(38, max_chars)
+    return {'fs': fs, 'margin': margin, 'margin_v': margin_v, 'pad': pad, 'avail': avail,
+            'max_words': max_words, 'max_chars': max_chars}
+
+
 def write_scene_ass(path, words, callouts, scene_end, w, h, font_name, accent, mode='karaoke',
-                    extra_styles=(), extra_events=()):
-    """Legenda da cena (modo 'karaoke', 'simple' ou 'off'), tarjas de destaque e
+                    extra_styles=(), extra_events=(), font_path=None):
+    """Legenda da cena (modo 'karaoke', 'simple', 'pop', 'box' ou 'off'), tarjas de destaque e
     os textos animados do layout da cena (extra_styles/extra_events)."""
-    fs = round(h * 0.052)
+    if mode not in CAPTION_MODES:
+        raise ValueError(f'Modo de legenda inválido: {mode}')
+    m = caption_metrics(w, h, mode)
+    fs, margin = m['fs'], m['margin']
     white = ass_color((255, 255, 255))
-    if mode == 'karaoke':  # palavra falada fica na cor de destaque
+    dark = ass_color((8, 20, 34))
+    if mode in ('karaoke', 'pop'):  # palavra falada fica na cor de destaque
         primary, secondary = ass_color(accent), white
+    elif mode == 'box':
+        primary, secondary = dark, dark
     else:
         primary, secondary = white, white
     outline = ass_color((10, 14, 22))
@@ -161,7 +198,13 @@ def write_scene_ass(path, words, callouts, scene_end, w, h, font_name, accent, m
     co_fs = round(h * 0.046)
     co_box = ass_color(accent)
     co_text = ass_color((8, 20, 34))
-    margin = int(w * 0.075)
+    if mode == 'box':  # BorderStyle 3: caixa opaca na cor do contorno
+        sub_style = (f'Style: Sub,{font_name},{fs},{primary},{secondary},{co_box},{shadow},-1,0,0,0,100,100,0,0,3,'
+                     f'{m["pad"]},0,2,{margin},{margin},{m["margin_v"]},1')
+    else:
+        thick = max(3, round(fs * 0.07)) if mode == 'pop' else max(2, round(h / 300))
+        sub_style = (f'Style: Sub,{font_name},{fs},{primary},{secondary},{outline},{shadow},-1,0,0,0,100,100,0,0,1,'
+                     f'{thick},{max(1, round(h / 540))},2,{margin},{margin},{m["margin_v"]},1')
     header = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {w}
@@ -171,7 +214,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Sub,{font_name},{fs},{primary},{secondary},{outline},{shadow},-1,0,0,0,100,100,0,0,1,{max(2, round(h / 300))},{max(1, round(h / 540))},2,{margin},{margin},{round(h * 0.055)},1
+{sub_style}
 Style: Callout,{font_name},{co_fs},{co_text},{co_text},{co_box},{shadow},-1,0,0,0,100,100,1,0,3,{round(h * 0.014)},0,9,{margin},{margin},{round(h * 0.10)},1
 {''.join(st + chr(10) for st in extra_styles)}
 [Events]
@@ -179,10 +222,32 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     events = list(extra_events)
     if mode != 'off' and words:
-        chunks = chunk_words(words)
+        fits, width = None, None
+        if font_path is not None:  # mede a largura de verdade, com a fonte do vídeo
+            from .visuals import text_width
+            caps = mode in ('pop', 'box')
+
+            def width(t):
+                return text_width(t.upper() if caps else t, font_path, round(fs * PIL_PER_ASS))
+
+            def fits(t):
+                return width(t) <= m['avail']
+        chunks = chunk_words(words, max_words=m['max_words'], max_chars=m['max_chars'], fits=fits)
         for ch, (a, b) in zip(chunks, chunk_times(chunks, scene_end)):
-            text = _karaoke_text(ch) if mode == 'karaoke' else esc(' '.join(x.text for x in ch))
-            events.append(f'Dialogue: 0,{ass_time(a)},{ass_time(b)},Sub,,0,0,0,,{text}')
+            size_tag = ''
+            if width is not None:  # uma palavra sozinha mais larga que a tela: encolhe só este bloco
+                wide = width(' '.join(x.text for x in ch))
+                if wide > m['avail']:
+                    size_tag = f'{{\\fs{int(fs * m["avail"] / wide)}}}'
+            if mode == 'karaoke':
+                text = _karaoke_text(ch)
+            elif mode == 'pop':
+                text = POP_TAGS + _karaoke_text(ch, caps=True)
+            elif mode == 'box':
+                text = POP_TAGS + esc(' '.join(x.text for x in ch).upper())
+            else:
+                text = esc(' '.join(x.text for x in ch))
+            events.append(f'Dialogue: 0,{ass_time(a)},{ass_time(b)},Sub,,0,0,0,,{size_tag}{text}')
     for co in callouts or []:
         text = co.get('text', '').strip()
         if not text:

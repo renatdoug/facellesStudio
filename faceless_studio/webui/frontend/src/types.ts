@@ -62,4 +62,4 @@ export interface Job {
   lines: string[]
 }
 
-export interface Meta { providers: string[]; layouts: string[]; busy: boolean }
+export interface Meta { version: string; providers: string[]; layouts: string[]; busy: boolean }

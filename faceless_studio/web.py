@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Faceless Studio v0.5 — abre a interface web local no navegador.
+"""Faceless Studio — abre a interface web local no navegador.
 
     python web.py              # http://127.0.0.1:8765
     python web.py --no-browser

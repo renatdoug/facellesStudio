@@ -4,6 +4,7 @@ import type { FileInfo, Scene, SceneInfo } from '../types'
 export type View = 'scene' | 'gallery' | 'preview' | 'final'
 
 interface Props {
+  aspect: string // proporção do vídeo, ex.: "9 / 16"
   view: View
   setView: (v: View) => void
   scene: Scene | undefined
@@ -52,7 +53,7 @@ export default function Stage(p: Props) {
 
       {p.view === 'scene' && p.scene && p.info && (
         <div className="canvas-wrap">
-          <div className="canvas">
+          <div className={'canvas' + (p.aspect.startsWith('9') ? ' tall' : '')} style={{ aspectRatio: p.aspect }}>
             {p.info.layout === 'video'
               ? (p.info.video?.url
                 ? <video key={p.info.video.url + (p.scene.video_start ?? 0)} src={`${p.info.video.url}#t=${p.scene.video_start ?? 0}`}

@@ -7,8 +7,8 @@ Cada layout produz:
 """
 from PIL import ImageDraw, ImageFont
 
-from . import charts, visuals
-from .subtitles import ass_color, ass_time, esc, find_word_time
+from . import ass_helpers, chart_anim, charts, visuals
+from .subtitles import ass_color, esc, find_word_time
 from .util import StudioError
 
 LAYOUTS = ('card', 'image', 'video', 'list', 'number', 'compare', 'quote', 'chart')
@@ -41,6 +41,18 @@ class Ctx:
         self.pal = visuals.palette(theme)
         self.words, self.speech_start, self.speech_end, self.scene_end = words, speech_start, speech_end, scene_end
         self.pad = int(w * 0.075)
+        self.portrait = h > w
+        # No vertical, a legenda sobe (acima da interface do Shorts), então o conteúdo termina antes.
+        self.bottom = 0.68 if self.portrait else 0.80
+        self.src_y = 0.705 if self.portrait else 0.845
+
+    def source_event(self, text, x=None, y_frac=None):
+        """Linha "Fonte: ..." que quebra em até 2 linhas (não estoura a largura no vertical)."""
+        size = round(self.h * 0.025)
+        lines = visuals.wrap_lines(f'Fonte: {text}', self.fonts['regular'], size, self.w - 2 * self.pad)[:2]
+        y = int(self.h * (y_frac or self.src_y))
+        return _ev(0.3, self.scene_end, 'LSmall',
+                   f'{{\\pos({self.pad if x is None else x},{y})\\fad(300,0)}}' + '\\N'.join(esc(z) for z in lines))
 
     def t(self, n, total, on_word=None, at=None):
         """Momento de entrada do item n de `total`: palavra-gatilho, tempo fixo ou distribuído."""
@@ -51,23 +63,7 @@ class Ctx:
         return find_word_time(self.words, on_word, default) if on_word else default
 
 
-ASS_SCALE = 1.16  # no ASS o tamanho inclui ascendente+descendente; isto iguala ao tamanho do Pillow
-
-
-def _style(name, font, size, color, bold=False, box=None, align=7, outline=0, shadow=0):
-    """Linha de estilo ASS. box=(cor, padding) desenha caixa opaca atrás do texto.
-    `size` é o tamanho no Pillow (o mesmo usado para medir e quebrar as linhas)."""
-    prim = ass_color(color)
-    size = round(size * ASS_SCALE)
-    if box:
-        return (f'Style: {name},{font},{size},{prim},{prim},{ass_color(box[0])},&H80000000,'
-                f'{-1 if bold else 0},0,0,0,100,100,0,0,3,{box[1]},0,{align},0,0,0,1')
-    return (f'Style: {name},{font},{size},{prim},{prim},&H00101418,&H90000000,'
-            f'{-1 if bold else 0},0,0,0,100,100,0,0,1,{outline},{shadow},{align},0,0,0,1')
-
-
-def _ev(start, end, style, text, layer=2):
-    return f'Dialogue: {layer},{ass_time(start)},{ass_time(max(end, start + 0.2))},{style},,0,0,0,,{text}'
+_style, _ev = ass_helpers.style, ass_helpers.ev
 
 
 def _headline_events(c, y_frac=0.19, size_frac=0.072, max_lines=2):
@@ -103,14 +99,19 @@ def layout_list(c, bg_path):
         raise StudioError(f'Cena {c.idx}: layout "list" precisa de "items".')
     items = [it if isinstance(it, dict) else {'text': str(it)} for it in items]
     n = len(items)
-    area_top, area_bottom = max(top, 0.34) * c.h, 0.80 * c.h
+    area_top, area_bottom = max(top, 0.34) * c.h, c.bottom * c.h
     step = min(c.h * 0.095, (area_bottom - area_top) / n)
     fs = round(min(c.h * 0.048, step * 0.62))
-    key_fs = fs
-    key_w = max(visuals.text_width(it.get('key', ''), c.fonts['bold'], key_fs) for it in items)
     has_keys = any(it.get('key') for it in items)
     x_key = c.pad
-    x_text = c.pad + (int(key_w + c.h * 0.05) if has_keys else int(fs * 1.4))
+    while True:  # reduz a fonte até o maior item caber na largura (importante no vertical)
+        key_fs = fs
+        key_w = max(visuals.text_width(it.get('key', ''), c.fonts['bold'], key_fs) for it in items)
+        x_text = c.pad + (int(key_w + c.h * 0.05) if has_keys else int(fs * 1.4))
+        widest = max(visuals.text_width(it.get('text', ''), c.fonts['regular'], fs) for it in items)
+        if fs <= 24 or x_text + widest <= c.w - c.pad:
+            break
+        fs -= 2
     styles += [_style('LItem', c.font_name, fs, (255, 255, 255), bold=False, align=4),
                _style('LKey', c.font_name, key_fs, (8, 20, 34), bold=True, align=4,
                       box=(c.pal['accent'], round(c.h * 0.010)))]
@@ -144,7 +145,7 @@ def _fmt_number(v, decimals):
 
 
 def layout_number(c, bg_path):
-    visuals.base_background(c.w, c.h, c.theme, c.channel, c.idx, c.fonts).save(bg_path)
+    visuals.base_background(c.w, c.h, c.theme, c.channel, c.idx, c.fonts, waves=not c.portrait).save(bg_path)
     spec = c.scene.get('number') or {}
     if 'value' not in spec:
         raise StudioError(f'Cena {c.idx}: layout "number" precisa de "number": {{"value": ...}}.')
@@ -152,13 +153,14 @@ def layout_number(c, bg_path):
     value, dec = float(spec['value']), int(spec.get('decimals', 0))
     pre, suf = spec.get('prefix', ''), spec.get('suffix', '')
     big = round(c.h * 0.19)
+    label_fs = round(c.h * (0.040 if c.portrait else 0.048))
     final_txt = f'{pre}{_fmt_number(value, dec)}{suf}'
     while visuals.text_width(final_txt, c.fonts['bold'], big) > c.w - 2 * c.pad and big > 40:
         big -= 4
     styles += [_style('LBig', c.font_name, big, c.pal['accent'], bold=True, align=1),
-               _style('LLabel', c.font_name, round(c.h * 0.048), (255, 255, 255), align=7),
+               _style('LLabel', c.font_name, label_fs, (255, 255, 255), align=7),
                _style('LSmall', c.font_name, round(c.h * 0.025), (190, 210, 220), align=1)]
-    y_big = int(c.h * max(0.56, top + 0.24))
+    y_big = int(c.h * ((top + 0.20) if c.portrait else max(0.56, top + 0.24)))
     a = c.t(0, 1, spec.get('on_word'), spec.get('at'))
     dur, steps = 1.2, 24
     for s in range(steps):  # contagem crescente com desaceleração
@@ -166,15 +168,15 @@ def layout_number(c, bg_path):
         p = 1 - (1 - (s + 1) / steps) ** 3
         txt = f'{pre}{_fmt_number(value * p, dec)}{suf}'
         fade = '\\fad(120,0)' if s == 0 else ''
-        events.append(_ev(t0, t0 + dur / steps, 'LBig', f'{{\\pos({c.pad},{y_big}){fade}}}{esc(txt)}'))
+        events.append(_ev(t0, t0 + dur / steps, 'LBig', f'{{\\pos({c.pad},{y_big}){fade}}}{esc(txt)}',
+                          min_dur=0.03))
     events.append(_ev(a + dur, c.scene_end, 'LBig', f'{{\\pos({c.pad},{y_big})}}{esc(final_txt)}'))
     if spec.get('label'):
-        lines = visuals.wrap_lines(spec['label'], c.fonts['regular'], round(c.h * 0.048), c.w - 2 * c.pad)[:2]
+        lines = visuals.wrap_lines(spec['label'], c.fonts['regular'], label_fs, c.w - 2 * c.pad)[:2]
         events.append(_ev(a + 0.4, c.scene_end, 'LLabel',
                           f'{{\\pos({c.pad},{y_big + int(c.h * 0.025)})\\fad(300,0)}}' + '\\N'.join(esc(x) for x in lines)))
     if spec.get('source'):
-        events.append(_ev(a + 0.6, c.scene_end, 'LSmall',
-                          f'{{\\pos({c.pad},{int(c.h * 0.835)})\\fad(300,0)}}Fonte: {esc(spec["source"])}'))
+        events.append(c.source_event(spec['source']))
     return styles, events
 
 
@@ -200,7 +202,7 @@ def layout_compare(c, bg_path):
         return hh + 2 * inner
 
     y0 = int(c.h * max(top, 0.32))
-    y1 = int(min(c.h * 0.80, y0 + max(content_h(left), content_h(right), c.h * 0.22)))
+    y1 = int(min(c.h * c.bottom, y0 + max(content_h(left), content_h(right), c.h * 0.22)))
     boxes = [(c.pad, y0, c.pad + col_w, y1), (c.pad + col_w + gap, y0, c.w - c.pad, y1)]
     draw.rounded_rectangle(boxes[0], radius=c.h // 60, fill=(255, 255, 255, 14),
                            outline=(*c.pal['muted'], 140), width=2)
@@ -263,12 +265,19 @@ def layout_chart(c, bg_path):
     spec = c.scene.get('chart') or {}
     styles, events, top = _headline_events(c, size_frac=0.058)
     bg = visuals.base_background(c.w, c.h, c.theme, c.channel, c.idx, c.fonts, waves=False)
-    charts.render_chart(spec, bg, bg_path, c.w, c.h, c.pal['accent'], c.pal['muted'], c.fonts['regular'],
-                        top=max(0.27, top + 0.02), bottom=0.80)
+    chart_top = max(0.27, top + 0.02)
+    chart_bottom = c.bottom - 0.02
+    if chart_anim.supports(spec):  # barras que crescem / linha que se desenha (ASS)
+        bg.save(bg_path)
+        extra_styles, extra_events = chart_anim.build(c, spec, top=chart_top, bottom=chart_bottom)
+        styles += extra_styles
+        events += extra_events
+    else:  # gráfico estático (matplotlib): "animate": false ou tipos sem versão animada
+        charts.render_chart(spec, bg, bg_path, c.w, c.h, c.pal['accent'], c.pal['muted'], c.fonts['regular'],
+                            top=chart_top, bottom=chart_bottom)
     if spec.get('source'):
         styles.append(_style('LSmall', c.font_name, round(c.h * 0.025), (190, 210, 220), align=1))
-        events.append(_ev(0.3, c.scene_end, 'LSmall', f'{{\\pos({c.pad},{int(c.h * 0.845)})\\fad(300,0)}}'
-                                                      f'Fonte: {esc(spec["source"])}'))
+        events.append(c.source_event(spec['source']))
     return styles, events
 
 

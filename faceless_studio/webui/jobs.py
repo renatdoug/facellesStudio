@@ -34,7 +34,7 @@ def build_command(python, main_py, script, mode, provider=None, regen='', strict
     if mode == 'scene':  # prévia de uma única cena, em 720p
         if not isinstance(scene, int) or isinstance(scene, bool) or scene < 1:
             raise JobError('Informe o número da cena (1 ou mais).')
-        cmd.extend(['--scenes', f'{scene}-{scene}', '--res', '1280x720'])
+        cmd.extend(['--scenes', f'{scene}-{scene}', '--draft'])
     if provider:
         if provider not in PROVIDERS:
             raise JobError(f'Fornecedor inválido: {provider}')
