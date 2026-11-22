@@ -22,7 +22,7 @@ from studio.util import StudioError, check_ffmpeg, ensure_dir
 
 ROOT = Path(__file__).resolve().parent
 FADE = 0.4
-TAIL = 0.35
+TAIL = 0.2  # pausa padrão depois da fala (campo "pause" do roteiro)
 
 
 def parse_args():
@@ -66,6 +66,9 @@ def validate_script(data):
         raise StudioError('O roteiro precisa ser um objeto JSON.')
     if data.get('default_transition', 'cut') not in video.ENTRIES:
         raise StudioError('"default_transition" deve ser ' + ', '.join(video.ENTRIES) + '.')
+    pause = data.get('pause')
+    if pause is not None and (isinstance(pause, bool) or not isinstance(pause, (int, float)) or not 0 <= pause <= 3):
+        raise StudioError('"pause" deve ser um número de segundos entre 0 e 3 (pausa depois da fala de cada cena).')
     if data.get('subtitles', 'karaoke') not in subtitles.CAPTION_MODES:
         raise StudioError('"subtitles" deve ser ' + ', '.join(subtitles.CAPTION_MODES) + '.')
     if 'resolution' in data and not re.fullmatch(r'\d{3,5}x\d{3,5}', str(data['resolution']).lower()):
@@ -226,6 +229,7 @@ def main():
     sub_mode = args.subtitles or data.get('subtitles', 'karaoke')
     accent = visuals.palette(theme)['accent']
     motion_amount = float(data.get('motion_amount', 0.08))
+    pause = float(data.get('pause', TAIL))
 
     music = args.music if args.music is not None else data.get('music')
     if music and music.lower() != 'none':
@@ -277,8 +281,10 @@ def main():
         else:
             src, events = voice.synthesize(text, voice_name, rate, cache, force=args.force_voice)
         speech = voice.audio_seconds(src)
+        if not args.no_voice:  # corta o silêncio que o edge-tts deixa depois da última palavra
+            speech = voice.speech_seconds(src, events, speech)
         head = FADE + 0.1 if fade_in else 0.0
-        tail = max(TAIL, FADE + 0.15) if fade_out else TAIL
+        tail = max(pause, FADE + 0.15) if fade_out else pause
         frames = math.ceil((head + speech + tail) * fps)
         total = frames / fps
         words = subtitles.align_words(text, events, speech)

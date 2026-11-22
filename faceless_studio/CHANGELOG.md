@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.8.1 — pausa entre as cenas
+
+Achado no primeiro teste real com voz (medido no vídeo): havia **1,4 s de silêncio entre as cenas** (2,1 s com `fade`).
+O edge-tts deixa ~0,87 s de silêncio depois da última palavra, e o motor o contava como fala e ainda somava 0,35 s de respiro.
+- A duração da fala agora vai até o fim da última palavra + 0,15 s. O corte usa o **maior** entre o fim da última palavra marcada e o início do silêncio final medido no áudio (`voice.speech_seconds`), então a fala nunca é cortada (conferido: o fim da fala ficou no mesmo instante do vídeo original). Pausa entre cenas: 1,4 s → ~0,5 s.
+- Novo campo `"pause"` no roteiro (segundos depois da fala, 0 a 3; padrão `0.2`, antes fixo em 0,35). Menu **Vídeo → Pausa entre as cenas** na interface. A cena que sai com `fade` mantém o piso de 0,55 s do próprio fade.
+- Guia de roteiro para IA e validação atualizados. 15 testes novos (total: 122), incluindo uma renderização com narração em cache que prova que o silêncio final é descartado.
+
 ## v0.8.0 — roteiros escritos por IA (guia e importação)
 
 Para comparar Claude, ChatGPT e Gemini como roteiristas **sem integrar nenhuma API de modelo de linguagem**:

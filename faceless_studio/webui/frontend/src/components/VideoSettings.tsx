@@ -14,6 +14,11 @@ export const CAPTIONS: [string, string][] = [
   ['off', 'Sem legenda'],
 ]
 
+export const PAUSES: [string, string][] = [
+  ['0', 'Sem pausa (0 s)'], ['0.1', 'Curta (0,1 s) — Shorts rápidos'], ['0.2', 'Normal (0,2 s)'],
+  ['0.4', 'Longa (0,4 s) — vídeos calmos'],
+]
+
 export const ENTRIES: [string, string][] = [
   ['cut', 'Corte seco'],
   ['fade', 'Fade'],
@@ -57,6 +62,12 @@ export default function VideoSettings({ script, onChange }: Props) {
           </select>
         </label>
         <small className="hint">Cada cena pode ter a sua própria entrada no painel da direita.</small>
+        <label className="field"><span>Pausa entre as cenas</span>
+          <select value={String(script.pause ?? 0.2)} onChange={(e) => onChange({ pause: Number(e.target.value) })}>
+            {PAUSES.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+            {!PAUSES.some(([v]) => Number(v) === Number(script.pause ?? 0.2)) && <option value={String(script.pause)}>{script.pause} s</option>}
+          </select>
+        </label>
       </div>
     </details>
   )

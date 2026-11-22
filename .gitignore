@@ -24,6 +24,9 @@ __pycache__/
 # Front-end (a pasta dist/ compilada É versionada: assim não é preciso ter Node para usar)
 **/node_modules/
 
+# Cópias de segurança que o Studio cria ao salvar um roteiro
+**/*.json.bak
+
 # Sistema
 .DS_Store
 Thumbs.db

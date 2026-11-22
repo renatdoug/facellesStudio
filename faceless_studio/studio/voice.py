@@ -2,6 +2,8 @@
 import asyncio
 import hashlib
 import json
+import re
+import subprocess
 from pathlib import Path
 
 from .util import StudioError, run, media_duration
@@ -67,3 +69,42 @@ def silent(text, cache_dir, words_per_second=2.6):
 
 def audio_seconds(path):
     return media_duration(path)
+
+
+SPEECH_PAD = 0.15  # folga depois da última palavra, para não "morder" o fim da fala
+_SIL_START = re.compile(r'silence_start: (-?[\d.]+)')
+_SIL_END = re.compile(r'silence_end: (-?[\d.]+)')
+
+
+def trailing_silence_start(path, noise_db=-45, min_len=0.3):
+    """Instante em que começa o silêncio que vai até o FIM do arquivo (None se não houver).
+    O silencedetect informa o fim do último silêncio quando o arquivo acaba, então "vai até o fim"
+    significa: sem fim informado ou com fim igual à duração do arquivo."""
+    p = subprocess.run(['ffmpeg', '-hide_banner', '-nostats', '-i', str(path), '-af',
+                        f'silencedetect=noise={noise_db}dB:d={min_len}', '-f', 'null', '-'],
+                       capture_output=True, text=True, encoding='utf-8', errors='replace')
+    spans, current = [], None
+    for line in p.stderr.splitlines():
+        if (m := _SIL_START.search(line)):
+            current = float(m.group(1))
+        elif (m := _SIL_END.search(line)) and current is not None:
+            spans.append((current, float(m.group(1))))
+            current = None
+    if current is not None:
+        spans.append((current, None))
+    if not spans:
+        return None
+    start, end = spans[-1]
+    return start if end is None or end >= media_duration(path) - 0.06 else None
+
+
+def speech_seconds(path, events, audio_dur=None, pad=SPEECH_PAD):
+    """Duração útil da narração: até o fim da fala + uma folga curta.
+
+    O edge-tts deixa ~0,9 s de silêncio depois da última palavra; contá-lo como fala criava uma pausa
+    de mais de 1 s entre as cenas. O fim da fala é o MAIOR entre o fim da última palavra marcada e o
+    início do silêncio final medido no áudio, então a fala nunca é cortada."""
+    dur = audio_dur if audio_dur is not None else media_duration(path)
+    marks = [e[1] for e in events if len(e) >= 2]
+    found = [x for x in (max(marks) if marks else None, trailing_silence_start(path)) if x is not None]
+    return dur if not found else min(dur, max(found) + pad)

@@ -45,6 +45,7 @@ precisa ser válido e usar só os campos descritos aqui.
 | `fps` | Quadros por segundo. Use `30`. |
 | `subtitles` | `karaoke` (padrão), `simple`, `pop` (blocos grandes que saltam), `box` (sobre caixa colorida) ou `off`. |
 | `default_transition` | Entrada padrão das cenas: `cut`, `fade`, `punch` (zoom rápido) ou `flash` (clarão branco). |
+| `pause` | Pausa, em segundos, entre o fim da fala e a próxima cena (0 a 3). Padrão `0.2`. Shorts rápidos: `0.1`; vídeos calmos: `0.4`. |
 | `music` | Caminho de uma trilha. **Deixe de fora** a menos que o usuário informe o arquivo. |
 | `music_volume_db` | Volume da trilha, em dB (ex.: `-20`). |
 | `motion_amount` | Intensidade geral do movimento de câmera (padrão `0.08`). |

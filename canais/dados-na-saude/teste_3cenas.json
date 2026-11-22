@@ -25,26 +25,52 @@
     {
       "id": "lista",
       "title": "O que a equipe verifica",
-      "transition": "fade",
+      "transition": "punch",
       "narration": "A equipe verifica as vias aéreas, a respiração, a circulação e o estado neurológico do paciente.",
       "headline": "AVALIAÇÃO INICIAL",
       "items": [
-        {"key": "A", "text": "Vias aéreas", "on_word": "vias"},
-        {"key": "B", "text": "Respiração", "on_word": "respiração"},
-        {"key": "C", "text": "Circulação", "on_word": "circulação"},
-        {"key": "D", "text": "Estado neurológico", "on_word": "neurológico"}
+        {
+          "key": "A",
+          "text": "Vias aéreas",
+          "on_word": "vias"
+        },
+        {
+          "key": "B",
+          "text": "Respiração",
+          "on_word": "respiração"
+        },
+        {
+          "key": "C",
+          "text": "Circulação",
+          "on_word": "circulação"
+        },
+        {
+          "key": "D",
+          "text": "Estado neurológico",
+          "on_word": "neurológico"
+        }
       ]
     },
     {
       "id": "grafico",
       "title": "Distribuição ilustrativa",
-      "transition": "fade",
+      "transition": "punch",
       "narration": "Em um exemplo ilustrativo, a maior parte das admissões de um plantão vem de causas respiratórias, seguidas de causas cardiovasculares e neurológicas.",
       "headline": "CAUSAS DE ADMISSÃO",
       "chart": {
         "type": "bar",
-        "labels": ["Respiratória", "Cardiovascular", "Neurológica", "Outras"],
-        "values": [42, 28, 18, 12],
+        "labels": [
+          "Respiratória",
+          "Cardiovascular",
+          "Neurológica",
+          "Outras"
+        ],
+        "values": [
+          42,
+          28,
+          18,
+          12
+        ],
         "unit": "%",
         "highlight": 0,
         "source": "Dados ilustrativos — substitua pelos seus antes de publicar"

@@ -5,7 +5,7 @@
 Programa em Python que transforma um roteiro em JSON em um vídeo MP4 narrado: voz por IA (edge-tts),
 legendas palavra a palavra em estilo karaokê, cenas com layout adaptado automaticamente ao conteúdo
 (lista, número, gráfico, comparação, citação, imagem), e imagens geradas por IA. Serve para produzir
-vídeos "faceless" para YouTube sem o criador aparecer na câmera. Está na v0.8.0 (versão única em
+vídeos "faceless" para YouTube sem o criador aparecer na câmera. Está na v0.8.1 (versão única em
 `studio/__init__.py`), desenvolvido de forma incremental (v0.1 → v0.3.2 no chat; v0.4 → v0.6 no Claude Code:
 interface Tkinter, interface web e cenas com vídeo de fundo).
 
@@ -165,5 +165,15 @@ o mínimo necessário, com teste de regressão adicionado, antes de reempacotar 
   Fora de escopo por ora: "Criar projeto com IA" (roteiro gerado a partir de tema, via Gemini).
 - Achado: a imagem em cache da cena 1 do `teste_3cenas.json` AINDA tem o watermark "pollinations.ai"
   (visto na interface); o teste com Gemini continua pendente.
+- Teste real do Gemini (22/11/2026, feito pelo Renato, passo a passo): a chave criada no Google AI Studio vem em
+  "nível gratuito" e o modelo `gemini-3.1-flash-image` responde HTTP 429 com `limit: 0` no free tier: **imagem
+  exige faturamento ativado** no projeto (ele usou a "conta de faturamento de teste" com R$ 30 de crédito). Depois
+  disso: 1 imagem 16:9 em 2K (2752x1536) levou 17 s, saiu **sem marca d'água** e custou **~R$ 0,62** (saldo
+  30,00 -> 29,38). Cada "Gerar de novo" cobra de novo. Ideia ainda NÃO testada: `"images": {"image_size": "1K"}`
+  no roteiro para baratear (o preço por tamanho não foi verificado). Pendente: vídeo completo com voz real
+  (o 1º render saiu mudo porque "Teste sem voz" ficou marcado em Opções) e a comparação Gemini x OpenAI.
+- Achado do 1º vídeo real com voz (22/11/2026): o edge-tts deixa ~0,87 s de silêncio DEPOIS da última palavra
+  (e ~0,17 s antes da primeira). Isso criava 1,4 s de pausa entre cenas (2,1 s com `fade`). Corrigido na v0.8.1
+  (`voice.speech_seconds` + campo `pause`). Para ritmo de Short prefira `punch`/`flash`/`cut` em vez de `fade`.
 - Decisão em aberto, não antecipar: se vale a pena construir o comparador de fornecedores (acima) ou
   seguir para outras melhorias — aguardar o Renato decidir depois de ver os resultados reais.

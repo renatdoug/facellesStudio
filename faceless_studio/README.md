@@ -123,6 +123,7 @@ O guia obriga a IA a **não inventar dados**: números de exemplo vão com `"sou
 - **Entrada da cena** (`transition`, por cena; `default_transition` para todas): `cut`, `fade`, `punch` (zoom rápido), `flash` (clarão branco).
 - **Movimento** (`motion`): `zoom_in`, `zoom_out`, `pan_left`, `pan_right`, `pan_up`, `pan_down`, `shake`, `static`.
 - **Gráficos animados** (padrão): barras crescem e a linha se desenha. Em `chart`: `"on_words": ["respiratórias", "cardiovasculares", ...]` faz cada barra entrar quando a palavra é dita; `"orient": "horizontal"|"vertical"` força a orientação (no vertical, rótulos longos já viram barras horizontais sozinhos); `"zero": true` força o zero no eixo da linha; `"animate": false` usa o gráfico estático.
+- **Pausa entre as cenas** (`pause`, em segundos depois da fala; padrão `0.2`; `0.1` deixa o Short mais rápido). `fade` entre cenas acrescenta uma pausa maior: para ritmo rápido use `punch`, `flash` ou `cut`.
 - **Prévias** (`--draft`, `--preview`, "Prévia desta cena") saem em 720p no mesmo formato do vídeo.
 - Ainda não há vídeo gerado por IA nem personagens animados; o movimento vem de imagens, vídeos seus e das animações acima.
 

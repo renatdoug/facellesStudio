@@ -13,7 +13,7 @@ from pathlib import Path
 from . import layouts, subtitles, video
 
 # Campos que o motor lê. Mantido em sincronia com o guia (tests/test_import.py confere os dois).
-SCRIPT_KEYS = ('title', 'channel', 'theme', 'voice', 'rate', 'resolution', 'fps', 'subtitles', 'default_transition',
+SCRIPT_KEYS = ('title', 'channel', 'theme', 'voice', 'rate', 'resolution', 'fps', 'subtitles', 'default_transition', 'pause',
                'music', 'music_volume_db', 'motion_amount', 'font_bold', 'font_regular', 'images', 'scenes',
                'revisar')
 SCENE_KEYS = ('id', 'title', 'headline', 'narration', 'prompt', 'image', 'video', 'video_start', 'video_end',
