@@ -1,0 +1,30 @@
+{
+  "title": "GeekLab - teste do enfermeiro: o herói do anime aguenta a pancada?",
+  "channel": "GeekLab",
+  "resolution": "1080x1920",
+  "fps": 30,
+  "subtitles": "topbox",
+  "pause": 0.25,
+  "images": {"provider": "none"},
+  "revisar": ["Conferir o conteúdo clínico da fala do enfermeiro antes de publicar (roteiro de teste do personagem, sem dados numéricos)."],
+  "toon": {
+    "background": "room",
+    "characters": {
+      "teo": {"name": "Téo", "preset": "nurse", "voice": "pt-BR-AntonioNeural"},
+      "ana": {"name": "Ana", "voice": "pt-BR-FranciscaNeural", "hair": "ponytail", "hair_color": [62, 62, 62],
+              "shirt": [236, 236, 236], "pants": [200, 200, 200], "glasses": false}
+    }
+  },
+  "scenes": [
+    {"id": "gancho", "speaker": "ana", "emotion": "happy", "gesture": "open", "reaction": "thinking",
+     "narration": "No anime, o herói leva uma pancada na cabeça e levanta rindo!"},
+    {"id": "enfermeiro", "speaker": "teo", "emotion": "smug", "gesture": "hip", "reaction": "surprised",
+     "narration": "Na vida real, desmaiar depois de uma pancada na cabeça é sinal de alerta."},
+    {"id": "duvida", "speaker": "ana", "emotion": "surprised", "gesture": "shrug", "reaction": "thinking",
+     "narration": "Sério? Mas ele nem ficou tonto!"},
+    {"id": "explica", "speaker": "teo", "emotion": "thinking", "gesture": "point", "reaction": "sad", "camera": "reaction",
+     "narration": "Pode ser concussão. O certo é procurar atendimento médico."},
+    {"id": "final", "speaker": "ana", "emotion": "happy", "gesture": "none", "reaction": "smug", "camera": "speaker",
+     "narration": "Então todo herói precisa de um enfermeiro!"}
+  ]
+}

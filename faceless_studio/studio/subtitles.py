@@ -1,6 +1,7 @@
 """Legendas: alinhamento palavra a palavra, blocos curtos, arquivos ASS (vídeo) e SRT (YouTube)."""
 import re
 import unicodedata
+from difflib import SequenceMatcher
 from dataclasses import dataclass
 
 
@@ -17,12 +18,17 @@ def _norm(s):
     return re.sub(r'[^\w]', '', s)
 
 
-def align_words(narration, events, total):
-    """Associa os tempos devolvidos pela voz a cada palavra do roteiro (com pontuação).
-    Palavras sem correspondência recebem tempos interpolados."""
-    tokens = narration.split()
-    if not tokens:
-        return []
+def _similar(a, b):
+    """Palavras parecidas (nomes próprios e homófonos que um reconhecedor de fala troca: "cem"/"sem", "bolt"/"bot")."""
+    if len(a) < 3 or len(b) < 3:
+        return False
+    return a[:2] == b[:2] or SequenceMatcher(None, a, b).ratio() >= 0.6
+
+
+def match_tokens(tokens, events, fuzzy=False):
+    """Para cada palavra do roteiro, o início e o fim da palavra correspondente nos `events` ([início, fim, texto]);
+    None onde nenhuma palavra ouvida corresponde. `fuzzy` (vozes GRAVADAS, cujo texto vem de um reconhecedor de fala)
+    aceita também palavras parecidas."""
     starts = [None] * len(tokens)
     ends = [None] * len(tokens)
     i = 0
@@ -33,7 +39,7 @@ def align_words(narration, events, total):
         match = None
         for j in range(i, min(len(tokens), i + 4)):  # próxima palavra (tolera até 3 puladas)
             nt = _norm(tokens[j])
-            if nt and (nt.startswith(nb) or nb.startswith(nt)):
+            if nt and (nt.startswith(nb) or nb.startswith(nt) or (fuzzy and _similar(nt, nb))):
                 match = j
                 break
         if match is None and i > 0 and len(nb) >= 2:  # continuação de palavra composta
@@ -46,6 +52,27 @@ def align_words(narration, events, total):
             starts[match] = start
         ends[match] = max(end, ends[match] or 0)
         i = match + 1  # pedaços seguintes de palavra composta caem na regra acima
+    return starts, ends
+
+
+def match_coverage(narration, events, fuzzy=False):
+    """(fração das palavras do roteiro encontradas na fala, lista das que não foram encontradas)."""
+    tokens = narration.split()
+    if not tokens:
+        return 1.0, []
+    starts, _ = match_tokens(tokens, events, fuzzy)
+    missing = [t for t, st in zip(tokens, starts) if st is None and _norm(t)]
+    counted = [t for t in tokens if _norm(t)]
+    return (1.0 - len(missing) / max(1, len(counted))), missing
+
+
+def align_words(narration, events, total, fuzzy=False):
+    """Associa os tempos devolvidos pela voz a cada palavra do roteiro (com pontuação).
+    Palavras sem correspondência recebem tempos interpolados."""
+    tokens = narration.split()
+    if not tokens:
+        return []
+    starts, ends = match_tokens(tokens, events, fuzzy)
     if all(s is None for s in starts):  # sem tempos: distribui pelo número de letras
         weights = [max(1, len(t)) for t in tokens]
         acc, total_w = 0.0, sum(weights)
@@ -278,16 +305,30 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     path.write_text(header + '\n'.join(events) + '\n', encoding='utf-8')
 
 
-def srt_blocks(words, offset):
-    """Blocos SRT (texto simples) da cena, deslocados para o tempo global do vídeo."""
+def srt_blocks(words, offset, scene_total=None):
+    """Blocos SRT (texto simples) da cena, deslocados para o tempo global do vídeo.
+    `scene_total` (duração da cena) impede que o último bloco passe para dentro da cena seguinte."""
     chunks = chunk_words(words)
     end = words[-1].end + 0.6 if words else 0
+    if scene_total is not None:
+        end = min(end, scene_total)
     for ch, (a, b) in zip(chunks, chunk_times(chunks, end)):
         yield a + offset, b + offset, ' '.join(x.text for x in ch)
 
 
+def fix_srt_overlaps(blocks):
+    """Cada legenda termina, no máximo, quando a próxima começa (leitores de SRT não toleram sobreposição)."""
+    blocks = sorted(blocks, key=lambda b: b[0])
+    out = []
+    for i, (a, b, text) in enumerate(blocks):
+        if i + 1 < len(blocks):
+            b = min(b, blocks[i + 1][0])
+        out.append((a, max(b, a), text))
+    return out
+
+
 def write_srt(path, blocks):
     lines = []
-    for n, (a, b, text) in enumerate(blocks, 1):
+    for n, (a, b, text) in enumerate(fix_srt_overlaps(blocks), 1):
         lines += [str(n), f'{srt_time(a)} --> {srt_time(b)}', text, '']
     path.write_text('\n'.join(lines), encoding='utf-8')

@@ -1,0 +1,102 @@
+{
+  "title": "GeekLab - enfermeiro v4 com a voz do Renato (Téo) e Edge TTS (Ana)",
+  "channel": "GeekLab",
+  "resolution": "1080x1920",
+  "fps": 30,
+  "subtitles": "topbox",
+  "pause": 0.25,
+  "images": {
+    "provider": "none"
+  },
+  "revisar": [
+    "Conferir o conteúdo clínico da fala do enfermeiro antes de publicar (roteiro de teste do personagem, sem dados numéricos)."
+  ],
+  "toon": {
+    "background": "room",
+    "characters": {
+      "teo": {
+        "name": "Téo",
+        "preset": "nurse",
+        "voice": "pt-BR-AntonioNeural"
+      },
+      "ana": {
+        "name": "Ana",
+        "voice": "pt-BR-FranciscaNeural",
+        "hair": "ponytail",
+        "hair_color": [
+          62,
+          62,
+          62
+        ],
+        "shirt": [
+          236,
+          236,
+          236
+        ],
+        "pants": [
+          200,
+          200,
+          200
+        ],
+        "glasses": false
+      }
+    }
+  },
+  "scenes": [
+    {
+      "id": "gancho",
+      "speaker": "ana",
+      "emotion": "happy",
+      "gesture": "open",
+      "reaction": "thinking",
+      "demo": {
+        "type": "hero_hit",
+        "frame": "bubble"
+      },
+      "demo_at": 0.5,
+      "narration": "No anime, o herói leva uma pancada na cabeça e levanta rindo!"
+    },
+    {
+      "id": "alerta",
+      "speaker": "teo",
+      "emotion": "smug",
+      "gesture": "hip",
+      "reaction": "surprised",
+      "camera": "speaker",
+      "narration": "Na vida real, perder a consciência depois de bater a cabeça é sinal de alerta.",
+      "audio": "audio/teo_02_alerta.wav"
+    },
+    {
+      "id": "duvida",
+      "speaker": "ana",
+      "emotion": "surprised",
+      "gesture": "shrug",
+      "reaction": "thinking",
+      "camera": "reaction",
+      "narration": "Sério? Mas ele nem ficou tonto!"
+    },
+    {
+      "id": "explica",
+      "speaker": "teo",
+      "emotion": "thinking",
+      "gesture": "point",
+      "reaction": "surprised",
+      "demo": {
+        "type": "formula",
+        "text": "Pancada na cabeça = avaliação"
+      },
+      "demo_at": 1.4,
+      "narration": "Uma concussão pode ocorrer até sem desmaio. Na dúvida, procure avaliação médica.",
+      "audio": "audio/teo_04_explica.wav"
+    },
+    {
+      "id": "final",
+      "speaker": "ana",
+      "emotion": "happy",
+      "gesture": "none",
+      "reaction": "smug",
+      "camera": "speaker",
+      "narration": "Então todo herói precisa de um enfermeiro!"
+    }
+  ]
+}

@@ -10,7 +10,7 @@ Serve a importação de roteiros escritos por IA (guia_roteiro_ia.md) e ao edito
 import difflib
 from pathlib import Path
 
-from . import layouts, subtitles, toon, video
+from . import layouts, subtitles, toon, toon_props, video
 
 # Campos que o motor lê. Mantido em sincronia com o guia (tests/test_import.py confere os dois).
 SCRIPT_KEYS = ('title', 'channel', 'theme', 'voice', 'rate', 'resolution', 'fps', 'subtitles', 'default_transition', 'pause',
@@ -19,7 +19,7 @@ SCRIPT_KEYS = ('title', 'channel', 'theme', 'voice', 'rate', 'resolution', 'fps'
 SCENE_KEYS = ('id', 'title', 'headline', 'narration', 'prompt', 'image', 'video', 'video_start', 'video_end',
               'layout', 'transition', 'motion', 'motion_amount', 'overlay_title', 'callouts', 'chapter', 'visual',
               'items', 'number', 'chart', 'compare', 'quote', 'revisar', 'speaker', 'emotion', 'reaction', 'gesture',
-              'camera', 'voice')
+              'camera', 'voice', 'demo', 'demo_at', 'audio')
 CHART_KEYS = ('type', 'labels', 'values', 'series', 'unit', 'decimals', 'highlight', 'source', 'on_words',
               'orient', 'zero', 'animate', 'on_word', 'at')
 NUMBER_KEYS = ('value', 'decimals', 'prefix', 'suffix', 'label', 'source', 'on_word', 'at')
@@ -184,4 +184,5 @@ def check(data, project_dir=None):
 # Valores aceitos pelos campos de escolha: o guia cita estas listas, e um teste confere que seguem iguais.
 CHOICES = {'transition': video.ENTRIES, 'motion': video.MOTIONS, 'subtitles': subtitles.CAPTION_MODES,
            'layout': layouts.LAYOUTS, 'emotion': tuple(toon.EMOTIONS), 'gesture': toon.GESTURES, 'camera': toon.CAMERAS,
-           'hair': toon.HAIRS}
+           'hair': toon.HAIRS, 'demo': toon_props.VISUALS,
+           'outfit': toon.OUTFITS, 'accessories': toon.ACCESSORIES, 'preset': tuple(toon.PRESETS)}

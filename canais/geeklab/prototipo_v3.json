@@ -1,0 +1,32 @@
+{
+  "title": "GeekLab - protótipo v3: dá para correr sobre a água?",
+  "channel": "GeekLab",
+  "resolution": "1080x1920",
+  "fps": 30,
+  "subtitles": "topbox",
+  "pause": 0.25,
+  "images": {"provider": "none"},
+  "toon": {
+    "background": "room",
+    "characters": {
+      "ana": {"name": "Ana", "voice": "pt-BR-FranciscaNeural"},
+      "leo": {"name": "Leo", "voice": "pt-BR-AntonioNeural"}
+    }
+  },
+  "scenes": [
+    {"id": "gancho", "speaker": "ana", "emotion": "happy", "gesture": "open", "reaction": "thinking",
+     "narration": "Ontem vi um ninja correndo sobre a água. Eu também consigo!"},
+    {"id": "conta", "speaker": "leo", "emotion": "thinking", "gesture": "hip", "reaction": "happy",
+     "demo": {"type": "formula", "text": "v > 100 km/h"}, "demo_at": 1.0,
+     "narration": "Calma. Eu fiz a conta."},
+    {"id": "ninja", "speaker": "leo", "emotion": "smug", "gesture": "point", "reaction": "surprised",
+     "demo": "ninja_water", "demo_at": 0.4,
+     "narration": "Para não afundar, o ninja precisaria correr a mais de cem quilômetros por hora."},
+    {"id": "choque", "speaker": "ana", "emotion": "surprised", "gesture": "shrug", "reaction": "smug",
+     "narration": "Cem?! Nem o Usain Bolt corre tanto!"},
+    {"id": "reacao", "speaker": "leo", "emotion": "smug", "gesture": "hip", "reaction": "sad", "camera": "reaction",
+     "narration": "Exato. Sem velocidade, só resta nadar."},
+    {"id": "final", "speaker": "ana", "emotion": "sad", "gesture": "none", "reaction": "smug", "camera": "speaker",
+     "narration": "Então hoje eu fico só na piscina."}
+  ]
+}

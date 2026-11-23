@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import math
 import re
+import unicodedata
 import zlib
 from pathlib import Path
 
@@ -30,8 +31,20 @@ EMOTIONS = {
     'smug': dict(brow=-0.4, lid=0.5, lift=0.0, eye=1.0, mouth='smile'),
 }
 GESTURES = ('none', 'point', 'hip', 'open', 'shrug')
-CAMERAS = ('auto', 'wide', 'speaker')
-HAIRS = ('none', 'ponytail', 'bob', 'spiky')
+# Planos: wide = os dois | speaker = plano médio de quem fala | reaction = close em quem ESCUTA
+CAMERAS = ('auto', 'wide', 'speaker', 'reaction')
+# Quem escuta também age: gesto leve conforme a reação (depois de um pequeno atraso)
+REACTION_GESTURE = {'surprised': 'shrug', 'smug': 'hip', 'angry': 'hip', 'thinking': 'hip'}
+REACT_DELAY = 0.45  # segundos até o ouvinte reagir ao que ouviu
+HAIRS = ('none', 'ponytail', 'bob', 'spiky', 'short')
+# Roupa e acessórios são da FICHA do personagem (independentes do cenário e da fala): `outfit` troca o tronco,
+# `accessories` soma peças. `preset` aplica um conjunto pronto (o que a ficha disser por cima prevalece).
+OUTFITS = ('casual', 'scrubs', 'coat')
+ACCESSORIES = ('stethoscope', 'badge', 'pen')
+PRESETS = {
+    'nurse': {'outfit': 'scrubs', 'accessories': ['stethoscope', 'badge', 'pen'], 'hair': 'short',
+              'hair_color': [30, 30, 30], 'shirt': [104, 104, 104], 'pants': [118, 118, 118], 'glasses': False},
+}
 BACKGROUNDS = ('room', 'plain')
 SIDES = ('left', 'right')
 MAX_CHARACTERS = 2
@@ -53,7 +66,10 @@ _DEFAULT_LOOKS = [
 def character_spec(cid: str, raw: dict | None, index: int) -> dict:
     """Ficha completa do personagem: o que o roteiro não disser usa os padrões (aparência diferente por posição)."""
     spec = dict(_DEFAULT_LOOKS[index % len(_DEFAULT_LOOKS)])
+    spec.update(PRESETS.get((raw or {}).get('preset'), {}))
     spec.update({k: v for k, v in (raw or {}).items() if v is not None})
+    spec.setdefault('outfit', 'casual')
+    spec.setdefault('accessories', [])
     spec.setdefault('side', 'left' if index == 0 else 'right')
     spec.setdefault('name', cid)
     return spec
@@ -76,6 +92,13 @@ def validate_toon(toon) -> None:
             raise ValueError(f'Personagem "{cid}": deve ser um objeto.')
         if raw.get('hair', 'none') not in HAIRS:
             raise ValueError(f'Personagem "{cid}": "hair" deve ser ' + ', '.join(HAIRS) + '.')
+        if raw.get('preset') is not None and raw['preset'] not in PRESETS:
+            raise ValueError(f'Personagem "{cid}": "preset" deve ser ' + ', '.join(PRESETS) + '.')
+        if raw.get('outfit', 'casual') not in OUTFITS:
+            raise ValueError(f'Personagem "{cid}": "outfit" deve ser ' + ', '.join(OUTFITS) + '.')
+        acc = raw.get('accessories', [])
+        if not isinstance(acc, list) or any(a not in ACCESSORIES for a in acc):
+            raise ValueError(f'Personagem "{cid}": "accessories" deve ser uma lista com ' + ', '.join(ACCESSORIES) + '.')
         if raw.get('side', 'left') not in SIDES:
             raise ValueError(f'Personagem "{cid}": "side" deve ser left ou right.')
         voice = raw.get('voice')
@@ -105,6 +128,11 @@ def validate_scene(scene: dict, toon: dict | None, n: int) -> None:
         raise ValueError(f'Cena {n}: "gesture" deve ser ' + ', '.join(GESTURES) + '.')
     if scene.get('camera', 'auto') not in CAMERAS:
         raise ValueError(f'Cena {n}: "camera" deve ser ' + ', '.join(CAMERAS) + '.')
+    if scene.get('demo') not in (None, '', False):
+        from . import toon_props
+        toon_props.validate_demo(scene.get('demo'), scene.get('demo_at'), n)
+        if scene.get('camera', 'auto') not in ('auto', 'wide'):
+            raise ValueError(f'Cena {n}: "demo" aparece na parede e precisa do plano aberto ("camera": "wide" ou "auto").')
 
 
 # ------------------------------------------------------------------ desenho
@@ -125,14 +153,23 @@ class _Ink:
         self.img = Image.new('RGBA', size, (0, 0, 0, 0))
         self.d = ImageDraw.Draw(self.img)
         self.k, self.ax, self.ay = k, ax, ay
+        self.rot, self.pivot = 0.0, (0.0, 0.0)  # inclinação (graus, anti-horário) em torno de `pivot`: usada na cabeça
 
     def p(self, x, y):
+        if self.rot:
+            a = math.radians(self.rot)
+            dx, dy = x - self.pivot[0], y - self.pivot[1]
+            x = self.pivot[0] + dx * math.cos(a) - dy * math.sin(a)
+            y = self.pivot[1] + dx * math.sin(a) + dy * math.cos(a)
         return (self.ax + x * self.k, self.ay - y * self.k)
 
     def lw(self, w):
         return max(1, round(w * self.k))
 
     def ellipse(self, cx, cy, rx, ry, fill=None, outline=INK, w=5):
+        if self.rot and abs(rx - ry) > 0.5:  # elipse inclinada: vira polígono (o PIL não gira elipses)
+            pts = [(cx + rx * math.cos(2 * math.pi * i / 40), cy + ry * math.sin(2 * math.pi * i / 40)) for i in range(40)]
+            return self.poly(pts, fill=fill, outline=outline, w=w)
         x, y = self.p(cx, cy)
         self.d.ellipse((x - rx * self.k, y - ry * self.k, x + rx * self.k, y + ry * self.k), fill=fill,
                        outline=outline, width=self.lw(w) if outline else 0)
@@ -177,6 +214,33 @@ def _lid(ink, cx, cy, r, frac):
     ink.poly(pts, fill=(208, 208, 208), outline=INK, w=4)
 
 
+def _dress(ink, spec: dict, top: float, c: float, shirt) -> None:
+    """Roupa (`outfit`) e acessórios por cima do tronco. `c` = deslocamento horizontal do tronco."""
+    outfit, acc = spec.get('outfit', 'casual'), spec.get('accessories') or []
+    dark = sum(shirt) / 3 < 150 and outfit != 'coat'  # peças finas precisam contrastar com a roupa
+    thin = PAPER if dark else INK
+    if outfit == 'scrubs':  # pijama cirúrgico: gola em V e bolso no peito
+        ink.poly([(c - 24, top), (c + 24, top), (c, top - 46)], fill=PAPER, outline=INK, w=4)
+        ink.rrect(c - 38, top - 100, c - 12, top - 66, 7, shirt)
+    elif outfit == 'coat':  # jaleco branco, mais longo que a camisa, com lapela e fenda
+        ink.rrect(c - 49, 112, c + 49, top, 30, PAPER)
+        ink.poly([(c - 20, top), (c + 20, top), (c, top - 52)], fill=shirt, outline=INK, w=4)
+        ink.line([(c - 20, top), (c - 7, top - 56), (c, top - 70)], 5)
+        ink.line([(c + 20, top), (c + 7, top - 56), (c, top - 70)], 5)
+        ink.line([(c, top - 70), (c, 112)], 4)
+    if 'stethoscope' in acc:  # em volta do pescoço; a peça do peito pende na frente
+        ink.line(_bezier((c - 27, top + 2), (c - 38, top - 96), (c, top - 112)), 5, thin)
+        ink.line(_bezier((c + 27, top + 2), (c + 38, top - 96), (c, top - 112)), 5, thin)
+        ink.ellipse(c, top - 118, 12, 12, fill=(70, 70, 70), outline=thin, w=4)
+    if 'badge' in acc:  # crachá sem marca: foto e linha de texto
+        ink.line([(c + 27, top - 52), (c + 27, top - 62)], 3)
+        ink.rrect(c + 14, top - 112, c + 40, top - 62, 5, PAPER)
+        ink.ellipse(c + 27, top - 80, 6, 6, fill=INK, outline=None)
+        ink.line([(c + 20, top - 98), (c + 34, top - 98)], 3)
+    if 'pen' in acc:  # caneta no bolso
+        ink.line([(c - 25, top - 66), (c - 25, top - 92)], 4, thin)
+
+
 def draw_character(spec: dict, pose: dict, k: float, size=(640, 800), facing: int = 1) -> Image.Image:
     """Desenha um personagem numa camada RGBA (pés no centro da base). `k` = pixels por unidade do desenho."""
     W, H = int(size[0] * k), int(size[1] * k)
@@ -191,19 +255,23 @@ def draw_character(spec: dict, pose: dict, k: float, size=(640, 800), facing: in
     # corpo (tubo) com o balanço da respiração
     top, bot = 380 + bob * 0.6, 168
     ink.rrect(-43 + lean * 0.5, bot, 43 + lean * 0.5, top, 36, shirt)
+    _dress(ink, spec, top, lean * 0.5, shirt)
     # braços (mistura de dois gestos)
     g1, g2, a = pose.get('gesture', ('down', 'down', 0.0))
     A, B = _ARMS[g1], _ARMS[g2]
 
+    osc = pose.get('arm_osc', (0.0, 0.0))  # vaivém contínuo das mãos (braço de trás, braço da frente): nada fica "congelado"
     for sign, ci, hi in ((-1, 2, 3), (1, 0, 1)):  # braço de trás primeiro, da frente por cima
+        o = osc[0] if sign < 0 else osc[1]
         sx, sy = sign * 36 + lean * 0.5, top - 40
-        ctrl = (_lerp(A[ci][0], B[ci][0], a) + lean * 0.5, _lerp(A[ci][1], B[ci][1], a) + bob * 0.6)
-        hand = (_lerp(A[hi][0], B[hi][0], a) + lean * 0.5, _lerp(A[hi][1], B[hi][1], a) + bob * 0.6)
+        ctrl = (_lerp(A[ci][0], B[ci][0], a) + lean * 0.5 + o * 0.4, _lerp(A[ci][1], B[ci][1], a) + bob * 0.6 + o * 0.7)
+        hand = (_lerp(A[hi][0], B[hi][0], a) + lean * 0.5 + o * 0.8, _lerp(A[hi][1], B[hi][1], a) + bob * 0.6 + o * 1.2)
         ink.noodle(_bezier((sx, sy), ctrl, hand), 17, PAPER)
         ink.ellipse(hand[0], hand[1], 13, 13, fill=PAPER, outline=INK, w=5)
-    # cabeça
+    # cabeça (inclina e acena em torno da base do pescoço)
     emo = pose['emotion']
-    hx, hy, rx, ry = lean, top + 128 + bob, 118, 128
+    hx, hy, rx, ry = lean, top + 128 + bob + pose.get('nod', 0.0), 118, 128
+    ink.rot, ink.pivot = pose.get('tilt', 0.0), (hx, hy - ry)
     if spec['hair'] == 'ponytail':
         ink.ellipse(hx - rx * 1.08, hy + ry * 0.45, 40, 46, fill=hair_col)
     elif spec['hair'] == 'bob':
@@ -233,11 +301,12 @@ def draw_character(spec: dict, pose: dict, k: float, size=(640, 800), facing: in
         ink.line([(hx - 0.38 * rx + 44, hy + 6), (hx + 0.38 * rx - 44, hy + 6)], 5, INK)
     # boca
     my, m = hy - ry * 0.5, pose.get('mouth', 0.0)
+    mw = 31 * pose.get('mouth_w', 1.0)  # "o"/"u" = boca redonda e estreita; "i"/"e" = larga
     if m > 0.08:
         mh = 12 + 46 * m
-        ink.ellipse(hx, my, 31, mh / 2, fill=(40, 40, 40), outline=INK, w=5)
+        ink.ellipse(hx, my, mw, mh / 2, fill=(40, 40, 40), outline=INK, w=5)
         if mh > 24:
-            ink.ellipse(hx, my - mh * 0.22, 17, mh * 0.2, fill=(196, 128, 128), outline=None)
+            ink.ellipse(hx, my - mh * 0.22, mw * 0.55, mh * 0.2, fill=(196, 128, 128), outline=None)
     elif emo['mouth'] == 'smile':
         ink.line(_arc_points(hx, my + 14, 34, 22, 205, 335, 14), 6, INK)
     elif emo['mouth'] == 'frown':
@@ -249,6 +318,10 @@ def draw_character(spec: dict, pose: dict, k: float, size=(640, 800), facing: in
         ink.poly(_arc_points(hx, hy, rx * 1.0, ry * 1.0, 42, 138, 20), fill=hair_col, outline=INK, w=5)
         ink.poly([(hx - rx * 0.66, hy + ry * 0.74), (hx - rx * 0.1, hy + ry * 0.52), (hx + rx * 0.42, hy + ry * 0.72)],
                  fill=hair_col, outline=INK, w=4)  # franja
+    elif spec['hair'] == 'short':  # cabelo curto e simples: uma "touca" sobre o topo, com a testa à mostra
+        ink.poly(_arc_points(hx, hy, rx * 1.02, ry * 1.04, 28, 152, 24) + [(hx + rx * 0.62, hy + ry * 0.72),
+                                                                       (hx, hy + ry * 0.60), (hx - rx * 0.62, hy + ry * 0.72)],
+                 fill=hair_col, outline=INK, w=5)
     elif spec['hair'] == 'spiky':
         pts = [(hx + rx * 0.97 * math.cos(math.radians(142)), hy + ry * 0.97 * math.sin(math.radians(142)))]
         for i in range(5):
@@ -267,16 +340,34 @@ def _hash01(*parts) -> float:
     return (zlib.crc32('|'.join(map(str, parts)).encode('utf-8')) % 1000) / 1000.0
 
 
-def mouth_open(words, t: float, seed: str = '') -> float:
-    """Abertura da boca (0..1) no instante t: abre e fecha a cada sílaba de cada palavra falada; fechada nas pausas."""
+_VOWELS = r'[aeiouyáéíóúâêôãõàü]+'
+# abertura e largura da boca por vogal: "a" abre muito; "o"/"u" arredondam (estreita); "i"/"e" alargam
+_V_OPEN = {'a': 1.0, 'e': 0.85, 'i': 0.7, 'o': 0.9, 'u': 0.75, 'y': 0.7}
+_V_WIDTH = {'a': 1.0, 'e': 1.08, 'i': 1.22, 'o': 0.62, 'u': 0.55, 'y': 1.15}
+
+
+def _base_vowel(ch: str) -> str:
+    base = unicodedata.normalize('NFD', ch)[0]
+    return base if base in _V_OPEN else 'a'
+
+
+def mouth_shape(words, t: float, seed: str = '') -> tuple[float, float]:
+    """(abertura 0..1, largura relativa) da boca no instante t. A boca abre e fecha a cada sílaba de cada palavra falada,
+    com a forma da vogal daquela sílaba; fecha de verdade nas pausas entre palavras e frases."""
     for i, w in enumerate(words):
         if w.start - 0.03 <= t <= w.end + 0.04:
-            syllables = max(1, len(re.findall(r'[aeiouyáéíóúâêôãõàü]+', w.text.lower())))
+            groups = re.findall(_VOWELS, w.text.lower()) or ['a']
             span = max(0.09, w.end - w.start)
-            phase = (t - w.start) / span * syllables
-            amp = 0.55 + 0.45 * _hash01(seed, i, w.text)
-            return amp * (0.5 - 0.5 * math.cos(2 * math.pi * phase))
-    return 0.0
+            phase = (t - w.start) / span * len(groups)
+            vowel = _base_vowel(groups[min(len(groups) - 1, max(0, int(phase)))][0])
+            amp = (0.62 + 0.38 * _hash01(seed, i, w.text)) * _V_OPEN[vowel]
+            return amp * (0.5 - 0.5 * math.cos(2 * math.pi * phase)), _V_WIDTH[vowel]
+    return 0.0, 1.0
+
+
+def mouth_open(words, t: float, seed: str = '') -> float:
+    """Só a abertura da boca (0..1): ver `mouth_shape`."""
+    return mouth_shape(words, t, seed)[0]
 
 
 def _ease(x: float) -> float:
@@ -287,8 +378,9 @@ def _ease(x: float) -> float:
 class Actor:
     """Pose de um personagem ao longo de uma cena. `words`: palavras que ELE fala (vazio = está ouvindo)."""
 
-    def __init__(self, cid, spec, words, emotion='neutral', gesture='none', seed=0):
+    def __init__(self, cid, spec, words, emotion='neutral', gesture='none', seed=0, heard=()):
         self.cid, self.spec, self.words = cid, spec, list(words)
+        self.heard = list(heard)  # palavras do OUTRO personagem (só o ouvinte usa): a reação silenciosa acompanha a fala
         self.emotion_name = emotion if emotion in EMOTIONS else 'neutral'
         self.gesture = gesture if gesture in GESTURES else 'none'
         self.seed = f'{cid}{seed}'
@@ -317,37 +409,60 @@ class Actor:
                 return max(0.0, min(1.0, x / 0.05, (0.18 - x) / 0.07))
         return 0.0
 
-    def _gesture(self, t):
-        if not self.speaking:
-            return ('down', 'down', 0.0)
-        if self.gesture != 'none':
-            sway = 0.06 * math.sin(2 * math.pi * 1.3 * t)
-            return ('down', self.gesture, min(1.0, _ease(t / 0.3) + sway))
-        pulse = 0.0  # gesto automático: braços abrem nas palavras de destaque
-        for i, w in enumerate(self.words):
+    def _stress(self, t, words=None):
+        """0..1: pico de ênfase a cada 3 palavras (gesto de braço, aceno e inclinação de cabeça)."""
+        pulse = 0.0
+        for i, w in enumerate(self.words if words is None else words):
             if i % 3 == 0 and w.start - 0.05 <= t <= w.start + 0.7:
                 x = (t - w.start + 0.05) / 0.75
                 pulse = max(pulse, math.sin(math.pi * min(1.0, max(0.0, x))))
-        return ('down', 'open', 0.75 * pulse)
+        return pulse
+
+    def _gesture(self, t):
+        if not self.speaking:
+            name = REACTION_GESTURE.get(self.emotion_name)  # o ouvinte reage com o corpo, depois de um instante
+            if name:
+                return ('down', name, 0.8 * _ease((t - REACT_DELAY) / 0.5))
+            return ('down', 'down', 0.0)
+        if self.gesture != 'none':
+            sway = 0.09 * math.sin(2 * math.pi * 0.9 * t) * _ease(t / 0.6)
+            return ('down', self.gesture, min(1.0, _ease(t / 0.45) + sway))
+        return ('down', 'open', 0.75 * self._stress(t))
 
     def pose(self, t: float) -> dict:
-        emo = self._emotion(t)
-        m = mouth_open(self.words, t, self.seed) if self.speaking else 0.0
+        ph = _hash01(self.seed, 'ph') * 2 * math.pi
         if self.speaking:
+            emo = self._emotion(t)
+            m, mw = mouth_shape(self.words, t, self.seed)
+            stress = self._stress(t)
             look = (0.45 + 0.25 * math.sin(1.1 * t + _hash01(self.seed, 'l') * 6), 0.12 * math.sin(0.8 * t))
             bob = 5 * abs(math.sin(2 * math.pi * 2.0 * t)) * (0.35 + m)
-            lean = 7 * _ease(t / 0.4)
+            lean = 7 * _ease(t / 0.4) + 4 * math.sin(2 * math.pi * 0.7 * t + ph)  # o tronco balança enquanto fala
+            tilt = 3.0 * math.sin(2 * math.pi * 0.55 * t + ph) + 5.0 * stress      # cabeça inclina na palavra de destaque
+            nod = -9.0 * stress + 2.0 * m                                           # e acena
+            osc = (8 * math.sin(2 * math.pi * 0.9 * t + ph), 8 * math.sin(2 * math.pi * 1.1 * t + ph + 1.3))
         else:
+            emo = self._emotion(max(0.0, t - REACT_DELAY))
+            m, mw = 0.0, 1.0
             step = int(t / 1.3)  # o ouvinte olha para quem fala, com pequenos desvios a cada ~1,3 s
             look = (0.85 + 0.12 * (_hash01(self.seed, 'x', step) - 0.5), 0.2 * (_hash01(self.seed, 'y', step) - 0.5))
-            bob = 2.5 * math.sin(2 * math.pi * 0.45 * t + _hash01(self.seed, 'p') * 6)
-            lean = 0.0
+            bob = 2.5 * math.sin(2 * math.pi * 0.45 * t + ph)
+            r = _ease((t - REACT_DELAY) / 0.5)
+            lean = 3 * math.sin(2 * math.pi * 0.3 * t + ph)
+            tilt = 2.5 * math.sin(2 * math.pi * 0.35 * t + ph) + (4.0 if self.emotion_name != 'neutral' else 0.0) * r
+            cyc = (t + _hash01(self.seed, 'n') * 2.4) % 2.4  # acena (concorda) duas vezes a cada ~2,4 s
+            nod = -6.0 * max(0.0, math.sin(2 * math.pi * cyc / 0.9)) if cyc < 0.9 else 0.0
+            heard = self._stress(t, self.heard) if self.heard else 0.0  # o outro enfatizou uma palavra
+            nod += -6.0 * heard
+            tilt += 3.0 * heard
+            emo = dict(emo, lift=emo['lift'] + 5.0 * heard)
+            osc = (3 * math.sin(2 * math.pi * 0.5 * t + ph), 3 * math.sin(2 * math.pi * 0.6 * t + ph + 2.0))
         if 'look' in EMOTIONS[self.emotion_name]:
             a = _ease(t / 0.3)
             tl = EMOTIONS[self.emotion_name]['look']
             look = (_lerp(look[0], tl[0], a), _lerp(look[1], tl[1], a))
-        return {'emotion': emo, 'mouth': m, 'blink': self._blink(t), 'look': look, 'bob': bob, 'lean': lean,
-                'gesture': self._gesture(t)}
+        return {'emotion': emo, 'mouth': m, 'mouth_w': mw, 'blink': self._blink(t), 'look': look, 'bob': bob,
+                'lean': lean, 'tilt': tilt, 'nod': nod, 'arm_osc': osc, 'gesture': self._gesture(t)}
 
 
 # ------------------------------------------------------------------ cenário e câmera
@@ -391,32 +506,94 @@ def load_background(spec: str, w: int, h: int, ss: int, base: Path | None) -> Im
     return im.crop((x, y, x + w * ss, y + h * ss))
 
 
+def _ease_out_back(x: float) -> float:
+    x = max(0.0, min(1.0, x))
+    c1, c3 = 1.70158, 2.70158
+    return 1 + c3 * (x - 1) ** 3 + c1 * (x - 1) ** 2
+
+
 class Stage:
-    """Cenário + personagens + câmera. Gera os quadros de uma cena (`scene_frames`)."""
+    """Cenário + personagens + câmera. Gera os quadros de uma cena (`scene_frames`).
+
+    Três planos padronizados (nunca deixam o outro personagem cortado pela metade na borda):
+      wide      os dois em quadro (com um leve avanço);
+      speaker   plano médio de quem fala: a janela termina antes do ouvinte;
+      reaction  close em quem ESCUTA (mostra a reação enquanto o outro fala).
+    Entre cenas a câmera DESLIZA do plano anterior para o novo (`GLIDE_S`), em vez de dar um corte seco."""
+
+    GLIDE_S = 0.35
+    EDGE = 150  # meia largura (unidades do desenho) da cabeça de um personagem, com cabelo
 
     def __init__(self, w: int, h: int, characters: dict, background: str = 'room', ss: int = 2,
-                 base_dir: Path | None = None):
+                 base_dir: Path | None = None, font_path=None):
         self.w, self.h, self.ss = w, h, ss
+        self.font_path = font_path
         self.chars = {cid: character_spec(cid, raw, i) for i, (cid, raw) in enumerate(characters.items())}
         self.bg = load_background(background, w, h, ss, base_dir)
-        self.unit = 1.25 * min(w, h * 9 / 16) / 1080  # pixels (saída) por unidade do desenho
-        self.base_y = h * 0.80
+        self.unit = 1.30 * min(w, h * 9 / 16) / 1080  # pixels (saída) por unidade do desenho
+        self.base_y = h * 0.90  # pés baixos no quadro: sobra parede para a legenda e para a ilustração (`demo`)
         n = len(self.chars)
-        self.x = {cid: w * (0.5 if n == 1 else (0.29 if spec['side'] == 'left' else 0.71)) for cid, spec in self.chars.items()}
+        self.x = {cid: w * (0.5 if n == 1 else (0.26 if spec['side'] == 'left' else 0.74)) for cid, spec in self.chars.items()}
 
-    def _camera(self, mode, speaker, t, total):
-        """Retângulo (em pixels do canvas ampliado) que a câmera enquadra no instante t."""
-        w, h, s = self.w, self.h, self.ss
-        progress = t / max(total, 1e-6)
-        if mode == 'wide':
-            zoom, cx, cy = 1.0 + 0.06 * progress, w / 2, h * 0.5
+    # ---- câmera
+
+    def _listener(self, speaker):
+        others = [c for c in self.chars if c != speaker]
+        return others[0] if others else None
+
+    def _half_widths(self, speaker):
+        """(meia largura do plano do falante, do close de reação) em pixels, para o ouvinte ficar FORA do quadro."""
+        listener = self._listener(speaker)
+        if listener is None:
+            return self.w / 3.0, self.w / 3.0 / 1.2
+        dist = abs(self.x[speaker] - self.x[listener])
+        half_s = max(dist - self.EDGE * self.unit - 0.02 * self.w, 0.25 * self.w)
+        half_r = max(0.9 * half_s / 1.2, 205 * self.unit)  # close: mais apertado, mas com o cabelo inteiro (e folga p/ a inclinação)
+        return half_s, half_r
+
+    def _rect(self, mode, speaker, progress):
+        """Retângulo (pixels de saída, sem o supersampling) que a câmera enquadra, com `progress` de 0 a 1 na cena."""
+        w, h = self.w, self.h
+        listener = self._listener(speaker)
+        if mode == 'wide' or (listener is None and mode == 'reaction'):
+            zoom, cx, cy = 1.0 + 0.04 * progress, w / 2, h * 0.5
+            cw, ch = w / zoom, h / zoom
+            cx = min(max(cx, cw / 2), w - cw / 2)
         else:
-            zoom = 1.5 + 0.09 * progress
-            cx, cy = self.x[speaker], self.base_y - 430 * self.unit
-        cw, ch = w / zoom, h / zoom
-        cx = min(max(cx, cw / 2), w - cw / 2)
+            subject, absent = (listener, speaker) if mode == 'reaction' else (speaker, listener)
+            half = self._half_widths(speaker)[1 if mode == 'reaction' else 0]
+            cw = 2 * half / (1 + (0.04 if mode == 'reaction' else 0.05) * progress)
+            cy_units = 520 if mode == 'reaction' else 430
+            cx = self.x[subject]
+            if absent is not None:  # a janela termina antes do personagem ausente, mesmo na borda do cenário
+                gap = self.EDGE * self.unit + 0.02 * w
+                if self.x[absent] > cx:
+                    lim = self.x[absent] - gap
+                    cw = min(cw, lim)
+                    cx = max(min(cx, lim - cw / 2), cw / 2)
+                else:
+                    lim = self.x[absent] + gap
+                    cw = min(cw, w - lim)
+                    cx = min(max(cx, lim + cw / 2), w - cw / 2)
+            cx = min(max(cx, cw / 2), w - cw / 2)
+            ch = cw * h / w
+            cy = self.base_y - cy_units * self.unit
+        if mode == 'wide' or (listener is None and mode == 'reaction'):
+            cy = h * 0.5
         cy = min(max(cy, ch / 2), h - ch / 2)
-        return ((cx - cw / 2) * s, (cy - ch / 2) * s, (cx + cw / 2) * s, (cy + ch / 2) * s)
+        return (cx - cw / 2, cy - ch / 2, cx + cw / 2, cy + ch / 2)
+
+    def _camera(self, mode, speaker, t, total, prev=None):
+        """Retângulo (em pixels do canvas ampliado) no instante t. `prev` = (plano, falante) da cena anterior:
+        nos primeiros `GLIDE_S` segundos a câmera desliza dele até o plano atual."""
+        rect = self._rect(mode, speaker, t / max(total, 1e-6))
+        if prev is not None and t < self.GLIDE_S:
+            a = _ease(t / self.GLIDE_S)
+            old = self._rect(prev[0], prev[1], 1.0)
+            rect = tuple(_lerp(o, n, a) for o, n in zip(old, rect))
+        return tuple(v * self.ss for v in rect)
+
+    # ---- atores e ilustração na parede
 
     def scene_actors(self, speaker, words, emotion='neutral', reaction='neutral', gesture='none', seed=0):
         actors = {}
@@ -424,12 +601,59 @@ class Stage:
             if cid == speaker:
                 actors[cid] = Actor(cid, spec, words, emotion, gesture, seed)
             else:
-                actors[cid] = Actor(cid, spec, [], reaction, 'none', seed)
+                actors[cid] = Actor(cid, spec, [], reaction, 'none', seed, heard=words)
         return actors
 
-    def frame(self, actors: dict, speaker: str, t: float, total: float, camera: str = 'speaker') -> Image.Image:
+    def panel_box(self, frame='screen'):
+        """Onde a "tela" da parede fica (pixels de saída): entre a legenda do topo e a cabeça dos personagens.
+        O balão de pensamento (`bubble`) é mais alto: pode passar por trás das cabeças (os personagens são desenhados por cima)."""
+        w, h = self.w, self.h
+        head_top = self.base_y - 700 * self.unit  # inclui as pontas do cabelo espetado
+        top = h * (0.25 if h > w else 0.17)
+        bottom = head_top + 0.05 * h if frame == 'bubble' else head_top - 0.015 * h
+        ph = max(bottom - top, 0.12 * h)
+        pw = min(0.86 * w, ph * (2.1 if frame == 'bubble' else 2.4))
+        return (w - pw) / 2, bottom - ph, pw, ph
+
+    def _draw_visual(self, canvas, visual, t, speaker=None):
+        from . import toon_props
+        spec, at = visual
+        u = t - at
+        if u < 0:
+            return
+        x, y, pw, ph = self.panel_box(spec.get('frame', 'screen'))
+        S = self.ss
+        panel = toon_props.render(spec, round(pw * S), round(ph * S), u, self.font_path)
+        pop = _ease_out_back(u / 0.30)
+        if pop < 0.999:
+            f = max(0.05, pop)
+            panel = panel.resize((max(2, round(panel.width * f)), max(2, round(panel.height * f))), Image.Resampling.BILINEAR)
+        cx, cy = (x + pw / 2) * S, (y + ph / 2) * S
+        px, py = round(cx - panel.width / 2), round(cy - panel.height / 2)
+        shadow = Image.new('RGBA', panel.size, (0, 0, 0, 0))
+        sd = ImageDraw.Draw(shadow)
+        box = (0, 0, panel.width - 1, panel.height - 1)
+        if spec.get('frame') == 'bubble':
+            sd.ellipse(box, fill=(90, 90, 90, 110))
+        else:
+            sd.rounded_rectangle(box, radius=int(28 * panel.height / 360), fill=(90, 90, 90, 110))
+        canvas.paste(shadow, (px + 10 * S, py + 12 * S), shadow)
+        canvas.paste(panel, (px, py), panel)
+        if spec.get('frame') == 'bubble' and speaker in self.x:  # bolinhas do balão de pensamento, da cabeça de quem fala até o balão
+            hx, hy = self.x[speaker] * S, (self.base_y - 700 * self.unit) * S
+            ex, ey = cx, py + panel.height
+            for frac, r in ((0.16, 0.011), (0.40, 0.017), (0.68, 0.026)):
+                bx, by = hx + (ex - hx) * frac, hy + (ey - hy) * frac
+                rad = r * self.w * S * min(1.0, pop)
+                ImageDraw.Draw(canvas).ellipse((bx - rad, by - rad, bx + rad, by + rad), fill=(252, 252, 252), outline=(22, 22, 22),
+                                               width=max(2, round(0.0045 * self.w * S)))
+
+    def frame(self, actors: dict, speaker: str, t: float, total: float, camera: str = 'speaker', prev=None,
+              visual=None) -> Image.Image:
         canvas = self.bg.copy()
         k = self.unit * self.ss
+        if visual:
+            self._draw_visual(canvas, visual, t, speaker)
         order = sorted(self.chars, key=lambda c: (c == speaker, self.x[c]))  # quem fala fica por cima
         for cid in order:
             spec = self.chars[cid]
@@ -438,13 +662,18 @@ class Stage:
             px = int(self.x[cid] * self.ss - layer.width / 2)
             py = int(self.base_y * self.ss - layer.height * 0.965)
             canvas.paste(layer, (px, py), layer)
-        box = self._camera(camera, speaker, t, total)
+        box = self._camera(camera, speaker, t, total, prev)
         return canvas.resize((self.w, self.h), Image.Resampling.BILINEAR, box=box)
 
     def scene_frames(self, speaker, words, total_frames, fps, emotion='neutral', reaction='neutral', gesture='none',
-                     camera='speaker', seed=0):
-        """Gera os quadros RGB (bytes) de uma cena. `words`: palavras de QUEM FALA, com tempos a partir do início do clipe."""
+                     camera='speaker', seed=0, prev=None, demo=None, demo_at=0.3):
+        """Gera os quadros RGB (bytes) de uma cena. `words`: palavras de QUEM FALA, com tempos a partir do início do clipe.
+        `prev`: (plano, falante) da cena anterior (a câmera desliza dele). `demo`: ilustração na parede (toon_props)."""
         actors = self.scene_actors(speaker, words, emotion, reaction, gesture, seed)
         total = total_frames / fps
+        vis = None
+        if demo not in (None, '', False):
+            from . import toon_props
+            vis = (toon_props.demo_spec(demo), float(0.3 if demo_at is None else demo_at))
         for f in range(total_frames):
-            yield self.frame(actors, speaker, f / fps, total, camera).tobytes()
+            yield self.frame(actors, speaker, f / fps, total, camera, prev, vis).tobytes()

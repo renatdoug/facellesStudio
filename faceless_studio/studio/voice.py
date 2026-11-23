@@ -108,3 +108,29 @@ def speech_seconds(path, events, audio_dur=None, pad=SPEECH_PAD):
     marks = [e[1] for e in events if len(e) >= 2]
     found = [x for x in (max(marks) if marks else None, trailing_silence_start(path)) if x is not None]
     return dur if not found else min(dur, max(found) + pad)
+
+
+REC_LUFS = -18.5  # volume-alvo da voz gravada: o das vozes do edge-tts (medido: -18,5 a -19,2 LUFS por cena)
+LEAD_PAD = 0.12  # folga antes da primeira palavra de uma gravação (o resto do silêncio inicial é cortado)
+
+
+def recorded(path, cache_dir, model=None, transcribe=None):
+    """Voz GRAVADA (arquivo do usuário) no lugar do edge-tts. Devolve (wav_preparado, eventos, probabilidades, origem).
+
+    Os tempos das palavras vêm do alinhador local (`align`), nunca do edge-tts. O áudio é preparado como o do
+    edge-tts: corta o silêncio do começo (os tempos são deslocados junto), tira o ronco grave e iguala o volume
+    ao das vozes sintéticas (-18,5 LUFS), para a voz gravada e as sintéticas não ficarem com volumes muito
+    diferentes. O corte do silêncio do FIM é o mesmo `speech_seconds` das outras vozes. Resultado em cache."""
+    from . import align
+    events, probs, source = align.word_events(path, cache_dir, model or align.DEFAULT_MODEL, transcribe)
+    cut = max(0.0, events[0][0] - LEAD_PAD) if events else 0.0
+    out = Path(cache_dir) / f'voz_gravada_{align.file_key(path)}_{round(cut * 1000)}_n{abs(round(REC_LUFS * 10))}.wav'
+    if not out.exists() or out.stat().st_size == 0:
+        tmp = out.with_name(out.stem + '.part.wav')
+        try:
+            run(['ffmpeg', '-y', '-loglevel', 'error', '-ss', f'{cut:.3f}', '-i', path, '-vn', '-af',
+                 f'highpass=f=70,loudnorm=I={REC_LUFS}:TP=-1.5:LRA=11', '-ar', 48000, '-ac', 1, tmp])
+        except StudioError as err:
+            raise StudioError(f'Não consegui ler o áudio "{Path(path).name}" (formato não suportado ou arquivo corrompido): {err}')
+        tmp.replace(out)
+    return out, [[a - cut, b - cut, t] for a, b, t in events], probs, source

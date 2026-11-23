@@ -17,7 +17,7 @@ import sys
 import time
 from pathlib import Path
 
-from studio import __version__, audio, images_ai, layouts, subtitles, toon, video, visuals, voice
+from studio import __version__, align, audio, images_ai, layouts, subtitles, toon, video, visuals, voice
 from studio.util import StudioError, check_ffmpeg, ensure_dir
 
 ROOT = Path(__file__).resolve().parent
@@ -40,6 +40,10 @@ def parse_args():
     p.add_argument('--scenes', help='Intervalo de cenas, ex.: 3-5')
     p.add_argument('--no-voice', action='store_true', help='Teste offline: áudio mudo (não publicar)')
     p.add_argument('--force-voice', action='store_true', help='Gera a narração de novo')
+    p.add_argument('--align-model', default=align.DEFAULT_MODEL,
+                   help='Modelo local que alinha as palavras de vozes GRAVADAS (campo "audio"): tiny, base, small, medium')
+    p.add_argument('--recording-sheet', metavar='PERSONAGEM',
+                   help='Lista as falas de um personagem para gravar (com o nome sugerido de cada arquivo) e para')
     p.add_argument('--image-provider', help='pollinations, openai, gemini, comfyui ou none')
     p.add_argument('--images-only', action='store_true', help='Gera as imagens e a folha de revisão, e para')
     p.add_argument('--regen', help='Gera de novo as imagens destas cenas, ex.: 2,5')
@@ -104,6 +108,8 @@ def validate_script(data):
                 raise StudioError(str(err))
         if s.get('voice') is not None and not re.fullmatch(r'[a-z]{2}-[A-Z]{2}-[A-Za-z]+Neural', str(s['voice'])):
             raise StudioError(f'Cena {n}: "voice" inválida (ex.: pt-BR-FranciscaNeural).')
+        if s.get('audio') is not None and not (isinstance(s['audio'], str) and s['audio'].strip()):
+            raise StudioError(f'Cena {n}: "audio" deve ser o caminho de um arquivo de áudio (voz gravada).')
         if s.get('video') is not None and not isinstance(s['video'], str):
             raise StudioError(f'Cena {n}: "video" deve ser o caminho de um arquivo de vídeo.')
     return data
@@ -217,9 +223,103 @@ def resolve_videos(chosen, script_dir):
     return found
 
 
+def resolve_recordings(chosen, script_dir, cache, args):
+    """Voz gravada (campo "audio"): confere os arquivos e ALINHA as palavras de todas as cenas gravadas antes de
+    renderizar qualquer coisa. Devolve {nº da cena: (wav, eventos, relatório)}. Alinhamento sem confiança interrompe
+    o processo, dizendo qual cena e por quê (nunca renderiza uma sincronização errada como se fosse boa)."""
+    found, problems = {}, []
+    for idx, scene in chosen:
+        if not scene.get('audio') or args.no_voice:
+            continue
+        src = Path(scene['audio'])
+        src = (src if src.is_absolute() else (script_dir / src)).resolve()
+        if not src.is_file():
+            raise StudioError(f'Áudio da cena {idx} não encontrado: {src}')
+        print(f'Cena {idx}: voz gravada "{src.name}" — alinhando as palavras...', flush=True)
+        wav, events, probs, source = voice.recorded(src, cache, args.align_model)
+        rep = align.assess(scene['narration'], events, probs, source, voice.audio_seconds(wav))
+        print(f'  {rep.summary()}', flush=True)
+        for msg in rep.messages:
+            print(f'  Atenção: {msg}', flush=True)
+        if rep.level == 'erro':
+            problems.append(f'Cena {idx} ("{src.name}"): ' + ' '.join(rep.messages))
+        found[idx] = (wav, events, rep)
+    if problems:
+        raise StudioError('A sincronização da voz gravada não é confiável, então nada foi renderizado:\n  - '
+                          + '\n  - '.join(problems)
+                          + '\nConfira se o áudio é desta cena e se o "narration" é o que foi dito (a legenda usa o texto do '
+                            'roteiro), ou forneça os tempos em "<áudio>.palavras.json".')
+    return found
+
+
+def _span(spans, idx):
+    a, b = spans.get(idx, (0.0, 0.0))
+    return f'{a:.1f}s a {b:.1f}s'
+
+
+def alignment_review(recordings):
+    """Cenas de voz gravada cujo alinhamento NÃO é bom (precisam de conferência antes de publicar)."""
+    return sorted(i for i, (_, _, r) in recordings.items() if r.level != 'ok')
+
+
+def write_alignment_report(path, recordings, spans):
+    """Relatório ao lado do vídeo: por cena gravada, se a sincronização (boca e legendas) é confiável."""
+    review = alignment_review(recordings)
+    lines = ['Alinhamento da voz gravada', '']
+    if review:
+        lines += ['*** CONFERIR ANTES DE PUBLICAR: cenas ' + ', '.join(map(str, review)) + ' ***',
+                  'Assista a esses trechos: a boca e as legendas podem estar fora do tempo da voz.', '']
+    else:
+        lines += ['Todas as cenas gravadas com alinhamento OK.', '']
+    for idx in sorted(recordings):
+        rep = recordings[idx][2]
+        lines.append(f'Cena {idx} ({_span(spans, idx)}): {rep.summary()}')
+        lines += [f'    - {msg}' for msg in rep.messages]
+    path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+    return path
+
+
+def print_alignment_summary(recordings, spans, report_path):
+    review = alignment_review(recordings)
+    if not review:
+        print(f'Voz gravada: alinhamento OK em todas as cenas ({report_path.name}).')
+        return
+    bar = '=' * 62
+    print(f'\n{bar}\n CONFERIR ANTES DE PUBLICAR: alinhamento da voz gravada\n{bar}')
+    for idx in review:
+        rep = recordings[idx][2]
+        print(f' Cena {idx} ({_span(spans, idx)}): {rep.summary()}')
+        for msg in rep.messages:
+            print(f'    - {msg}')
+    print(f' Assista a esses trechos: a boca e as legendas podem estar fora do tempo.\n Relatório: {report_path}\n{bar}')
+
+
+def print_recording_sheet(data, speaker, script):
+    chars = (data.get('toon') or {}).get('characters') or {}
+    if speaker not in chars:
+        raise StudioError(f'"{speaker}" não é um personagem do roteiro ({", ".join(chars) or "nenhum"}).')
+    rows = align.recording_sheet(data['scenes'], speaker)
+    if not rows:
+        raise StudioError(f'O personagem "{speaker}" não fala em nenhuma cena.')
+    lines = [f'Falas de {speaker} para gravar (um arquivo por fala; salve em "audio/" ao lado do roteiro):', '']
+    for n, sid, fname, text in rows:
+        lines += [f'Cena {n} [{sid}]  ->  audio/{fname}', f'    "{text}"', '']
+    lines += ['Dicas: fale como numa conversa, em ambiente silencioso, com 15-20 cm do microfone; deixe ~0,5 s de silêncio antes e depois.',
+              'Depois, em cada cena, preencha o campo "audio": "audio/<arquivo>".']
+    text = '\n'.join(lines)
+    print(text)
+    sheet = script.with_name(f'gravacao_{speaker}.txt')
+    sheet.write_text(text + '\n', encoding='utf-8')
+    print(f'\n(salvo em {sheet})')
+
+
 def main():
     args = parse_args()
     t0 = time.time()
+    if args.recording_sheet:
+        script = (ROOT / args.script).resolve()
+        print_recording_sheet(load_script(script), args.recording_sheet, script)
+        return
     check_ffmpeg()
     script = (ROOT / args.script).resolve()
     data = load_script(script)
@@ -276,16 +376,19 @@ def main():
               'mude o "prompt" ou aponte "image" para um arquivo seu.')
         return
     videos = resolve_videos(chosen, project_dir)
-    toon_stage, toon_seen = None, False
+    recordings = resolve_recordings(chosen, project_dir, cache, args)
+    toon_stage, toon_seen, toon_prev = None, False, None
     if any(layouts.detect_layout(s) == 'toon' for _, s in chosen):
         cfg = data['toon']
         try:
-            toon_stage = toon.Stage(w, h, cfg['characters'], cfg.get('background', 'room'), base_dir=project_dir)
+            toon_stage = toon.Stage(w, h, cfg['characters'], cfg.get('background', 'room'), base_dir=project_dir,
+                                    font_path=fonts['bold'])
         except FileNotFoundError as err:
             raise StudioError(str(err))
 
     clips, wavs, srt, chapters = [], [], [], []
     clock = 0.0
+    spans = {}  # nº da cena -> (início, fim) no vídeo final, para o relatório de alinhamento
     for pos, (idx, scene) in enumerate(chosen):
         layout = layouts.detect_layout(scene)
         if layout == 'image' and idx not in images:
@@ -306,6 +409,8 @@ def main():
         scene_voice = scene.get('voice') or (chars.get(scene.get('speaker')) or {}).get('voice') or voice_name
         if args.no_voice:
             src, events = voice.silent(text, cache)
+        elif idx in recordings:  # voz GRAVADA: tempos do alinhador local, nunca do edge-tts
+            src, events, _ = recordings[idx]
         else:
             src, events = voice.synthesize(text, scene_voice, rate, cache, force=args.force_voice)
         speech = voice.audio_seconds(src)
@@ -315,7 +420,7 @@ def main():
         tail = max(pause, FADE + 0.15) if fade_out else pause
         frames = math.ceil((head + speech + tail) * fps)
         total = frames / fps
-        words = subtitles.align_words(text, events, speech)
+        words = subtitles.align_words(text, events, speech, fuzzy=idx in recordings)
         shifted = [subtitles.Word(x.text, x.start + head, x.end + head) for x in words]
 
         img = work / f'visual_{idx:02}.png'
@@ -346,7 +451,7 @@ def main():
                                   font_path=fonts['bold'],
                                   # cenas de texto têm o nome do canal no canto superior: a tarja desce para não cobri-lo
                                   callout_top=0.10 if layout in ('image', 'video') else 0.14)
-        srt.extend(subtitles.srt_blocks(shifted, clock))
+        srt.extend(subtitles.srt_blocks(shifted, clock, total))
         if scene.get('chapter'):
             chapters.append((clock, scene['chapter']))
 
@@ -362,12 +467,14 @@ def main():
                                      fade_in, fade_out, FADE, cwd=work, preset=args.preset, entry=entry)
         elif layout == 'toon':
             camera = scene.get('camera', 'auto')
-            if camera == 'auto':  # 1º plano aberto (mostra os dois); depois fecha em quem fala
-                camera = 'speaker' if toon_seen else 'wide'
+            if camera == 'auto':  # 1º plano aberto (mostra os dois); depois fecha em quem fala; ilustração na parede = aberto
+                camera = 'speaker' if toon_seen and not scene.get('demo') else 'wide'
             toon_seen = True
             quadros = toon_stage.scene_frames(scene['speaker'], shifted, frames, fps, scene.get('emotion', 'neutral'),
                                               scene.get('reaction', 'neutral'), scene.get('gesture', 'none'), camera,
-                                              seed=idx)
+                                              seed=idx, prev=toon_prev, demo=scene.get('demo'),
+                                              demo_at=scene.get('demo_at'))
+            toon_prev = (camera, scene['speaker'])  # a próxima cena de cartum desliza a câmera a partir daqui
             video.render_frames(quadros, ass.name, clip.name, frames, w, h, fps, fade_in, fade_out, FADE, cwd=work,
                                 preset=args.preset, entry=entry)
         else:
@@ -376,6 +483,7 @@ def main():
                                FADE, cwd=work, amount=amount, preset=args.preset, entry=entry)
         clips.append(clip)
         wavs.append(wav)
+        spans[idx] = (clock, clock + total)
         clock += total
 
     print('Montando vídeo final...', flush=True)
@@ -399,6 +507,9 @@ def main():
             print(f'  Atenção: {msg}')
     for msg in img_warnings:
         print(f'Atenção: {msg}')
+    if recordings:
+        report_path = write_alignment_report(output.with_name(output.stem + '_alinhamento.txt'), recordings, spans)
+        print_alignment_summary(recordings, spans, report_path)
     if args.no_voice:
         print('Atenção: modo --no-voice (áudio mudo). Serve só para testar a montagem.')
 

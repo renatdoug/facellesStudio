@@ -21,6 +21,19 @@ __pycache__/
 **/assets/generated/
 **/assets/media/
 
+# Voz gravada (dado pessoal): gravações e áudios dos canais NÃO vão para o Git.
+# Os áudios SINTÉTICOS de teste ficam em pastas "audio_ensaio" e continuam versionáveis.
+**/audio/
+**/audio_gravado*/
+canais/**/*.wav
+canais/**/*.mp3
+canais/**/*.m4a
+canais/**/*.aac
+canais/**/*.ogg
+canais/**/*.opus
+canais/**/*.flac
+!canais/**/audio_ensaio/*
+
 # Front-end (a pasta dist/ compilada É versionada: assim não é preciso ter Node para usar)
 **/node_modules/
 

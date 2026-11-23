@@ -1,0 +1,10 @@
+Falas de teo para gravar (um arquivo por fala; salve em "audio/" ao lado do roteiro):
+
+Cena 2 [alerta]  ->  audio/teo_02_alerta.wav
+    "Na vida real, perder a consciência depois de bater a cabeça é sinal de alerta."
+
+Cena 4 [explica]  ->  audio/teo_04_explica.wav
+    "Uma concussão pode ocorrer até sem desmaio. Na dúvida, procure avaliação médica."
+
+Dicas: fale como numa conversa, em ambiente silencioso, com 15-20 cm do microfone; deixe ~0,5 s de silêncio antes e depois.
+Depois, em cada cena, preencha o campo "audio": "audio/<arquivo>".

@@ -71,6 +71,7 @@ Cada cena é um objeto de `scenes`. O tipo da cena é escolhido pelo conteúdo: 
 | `prompt` | Descrição da imagem (inglês). Torna a cena uma **imagem**. |
 | `image` | Caminho de um arquivo de imagem do usuário. **Deixe de fora.** |
 | `video`, `video_start`, `video_end` | Clipe de vídeo de fundo. **Não use**, a menos que o usuário informe o arquivo. |
+| `audio` | Caminho de uma **gravação de voz do usuário** para esta fala (no lugar da voz sintética). **Deixe de fora**: o usuário preenche depois de gravar. O `narration` deve ser exatamente o que será dito. |
 | `layout` | Força o tipo (`card`, `image`, `video`, `toon`, `list`, `number`, `compare`, `quote`, `chart`). Normalmente **deixe de fora**. |
 | `transition` | Entrada desta cena: `cut`, `fade`, `punch` ou `flash`. Sem ela vale `default_transition`. |
 | `motion` | Câmera: `auto` (padrão), `zoom_in`, `zoom_out`, `pan_left`, `pan_right`, `pan_up`, `pan_down`, `shake`, `static`. |
@@ -97,10 +98,17 @@ pelo programa: a boca abre e fecha junto com a fala, piscam, mudam de expressão
   `"toon": {"background": "room", "characters": {"ana": {"name": "Ana", "voice": "pt-BR-FranciscaNeural"}, "leo": {"voice": "pt-BR-AntonioNeural", "hair": "spiky", "glasses": true}}}`.
   `background`: `room` (sala em preto e branco), `plain` (fundo liso) ou o caminho de uma imagem. Por personagem:
   `voice`, `side` (`left` ou `right`), `hair` (`none`, `ponytail`, `bob`, `spiky`), `hair_color`, `shirt`, `pants` (cores `[R, G, B]`) e `glasses`.
+  `hair` também aceita `short`. Roupa: `outfit` (`casual`, `scrubs` = pijama cirúrgico, `coat` = jaleco) e `accessories` (lista com `stethoscope`, `badge`, `pen`).
+  `preset` aplica um personagem pronto: `nurse` (`"preset": "nurse"`) = enfermeiro (scrub, estetoscópio, crachá, caneta); o que você escrever por cima prevalece.
 - Em cada cena de cartum use `speaker` (o `id` do personagem que fala) e `narration` (a fala). Opcionais:
   `emotion` de quem fala e `reaction` de quem escuta: `neutral`, `happy`, `angry`, `sad`, `surprised`, `thinking`, `smug`;
-  `gesture`: `none`, `point`, `hip`, `open`, `shrug`; `camera`: `auto` (1ª cena em plano aberto, depois fecha em quem fala), `wide` ou `speaker`;
-  `voice` troca a voz só nesta fala.
+  `gesture`: `none`, `point`, `hip`, `open`, `shrug`; `camera`: `auto` (1ª cena em plano aberto, depois plano médio de quem fala), `wide` (os dois), `speaker` (quem fala) ou
+  `reaction` (close em quem ESCUTA: use quando a reação for a graça da cena); `voice` troca a voz só nesta fala.
+- `demo` põe uma **ilustração animada na parede** enquanto a fala acontece (a animação explica, não só acompanha):
+  `"demo": "ninja_water"` (ninja correndo sobre a água) ou `"demo": {"type": "formula", "text": "v > 100 km/h"}` (texto de até 40 caracteres
+  escrito aos poucos). Tipos: `ninja_water`, `formula`, `hero_hit` (um herói fictício leva uma pancada cartunesca com martelo de brinquedo, fica tonto e levanta rindo; sem violência gráfica).
+  `"frame": "bubble"` dentro do `demo` troca a tela retangular por um **balão de pensamento** com bolinhas até quem fala (`screen` é o padrão). `demo_at` = segundos em que aparece (padrão 0,3). A cena com `demo` fica em plano aberto.
+  Use quando a fala citar uma ação ou uma conta: "eu fiz a conta" pede uma `formula`.
 - Use `"subtitles": "topbox"`, `"resolution": "1080x1920"` e `"images": {"provider": "none"}`. Não use `prompt`, `items` nem `chart` nas cenas de cartum.
 - Fale como em um diálogo: frases curtas, perguntas e respostas, 6 a 16 palavras por fala. Varie `emotion` e `gesture`.
 

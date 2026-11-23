@@ -5,7 +5,7 @@
 Programa em Python que transforma um roteiro em JSON em um vídeo MP4 narrado: voz por IA (edge-tts),
 legendas palavra a palavra em estilo karaokê, cenas com layout adaptado automaticamente ao conteúdo
 (lista, número, gráfico, comparação, citação, imagem), e imagens geradas por IA. Serve para produzir
-vídeos "faceless" para YouTube sem o criador aparecer na câmera. Está na v0.10.0 (versão única em
+vídeos "faceless" para YouTube sem o criador aparecer na câmera. Está na v0.12.0 (versão única em
 `studio/__init__.py`), desenvolvido de forma incremental (v0.1 → v0.3.2 no chat; v0.4 → v0.6 no Claude Code:
 interface Tkinter, interface web e cenas com vídeo de fundo).
 
@@ -59,6 +59,7 @@ do programa.
   `--image-provider`, `--regen`, `--strict-images`, `--no-voice`), lendo a saída em tempo real. Procura canais
   em `../canais`. Cancelar usa `taskkill /T` para matar também o ffmpeg. Aberta por
   `abrir_studio_simples.bat` (usa `.venv\Scripts\pythonw.exe`). Foi aberta e validada na máquina do Renato.
+- Bonecos v0.11 (protótipo v3 do GeekLab, `canais/geeklab/prototipo_v3.json`, 22,7 s): cabeça inclina/acena (`_Ink.rot` gira os pontos da cabeça), ouvinte reage com atraso (`REACT_DELAY`) e com gesto, boca por vogal (`mouth_shape`), 3 planos `wide`/`speaker`/`reaction` calculados por geometria para NUNCA cortar o outro personagem (`Stage._rect`; teste cobre vertical e horizontal), câmera desliza entre cenas (`GLIDE_S`), campo `demo` (+`demo_at`) = tela na parede com `ninja_water`/`formula` (`studio/toon_props.py`; `visual` já é o subtítulo do cartão, por isso o nome), SRT sem sobreposição (`fix_srt_overlaps` + `srt_blocks(scene_total)`). Enfermeiro: ficha com `preset: nurse`/`outfit`/`accessories`/`hair: short` (roteiro `canais/geeklab/prototipo_enfermeiro.json`). v4 (`prototipo_enfermeiro_v4.json`): personagens maiores (`unit` 1.30, x 0.26/0.74), ouvinte reage à ênfase do falante, `demo` `hero_hit` com `frame: bubble`. Voz gravada (v0.12): cena com `audio` usa a gravação do Renato; `studio/align.py` (faster-whisper local, opcional via `requirements-voz.txt`, ou `<áudio>.palavras.json`) dá os tempos, NUNCA o edge-tts; relatório de confiança (`align.assess`): `erro` = para antes de renderizar; `--recording-sheet`; fim do render imprime "CONFERIR ANTES DE PUBLICAR" e grava `<vídeo>_alinhamento.txt`; gravações em `**/audio/` são ignoradas pelo Git (sintéticos em `audio_ensaio/` não). Precisão medida: mediana 40 ms. Teste de aceitação com a VOZ REAL do Renato pendente (ele precisa gravar as falas do Téo; roteiro `prototipo_enfermeiro_v4_minha_voz.json`). Ideia discutida, NÃO feita: vozes mais expressivas por API (Gemini TTS/ElevenLabs) e clonagem. Pendente: a interface web ainda não lista `demo`/`reaction`/`preset`/`outfit`; o v2 do protótipo não estava no repositório.
 - Bonecos animados / cartum (v0.10, MVP): `studio/toon.py` = personagens DESENHADOS POR CÓDIGO (Pillow, camadas RGBA
   por personagem, supersampling 2x) + `Actor` (boca por sílaba sincronizada com `Word.start/end`, piscar determinístico
   com trecho fechado, olhar, gestos, 7 emoções) + `Stage` (cenário `room`/`plain`/imagem + câmera wide/speaker por
