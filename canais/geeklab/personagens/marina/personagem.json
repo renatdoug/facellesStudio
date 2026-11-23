@@ -1,0 +1,51 @@
+{
+  "name": "Marina",
+  "images": {
+    "neutra": "marina_01_neutra.jpg",
+    "feliz": "marina_02_feliz.jpg",
+    "surpresa": "marina_03_surpresa.jpg",
+    "falando": "marina_04_falando.jpg"
+  },
+  "ref_size": [
+    1792,
+    2400
+  ],
+  "boxes": {
+    "face": [
+      540,
+      290,
+      1250,
+      860
+    ],
+    "mouth": [
+      815,
+      630,
+      1045,
+      775
+    ],
+    "eye_l": [
+      740,
+      445,
+      892,
+      545
+    ],
+    "eye_r": [
+      972,
+      440,
+      1118,
+      545
+    ]
+  },
+  "neck": [
+    930,
+    880
+  ],
+  "tilt_fade": [
+    820,
+    1150
+  ],
+  "tilt_gain": 0.6,
+  "map": {
+    "smug": "feliz"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "title": "GeekLab - protótipo de personagem por recortes: Marina",
+  "channel": "GeekLab",
+  "resolution": "1080x1920",
+  "fps": 30,
+  "subtitles": "topbox",
+  "pause": 0.25,
+  "images": {"provider": "none"},
+  "toon": {
+    "background": "soft",
+    "characters": {
+      "marina": {"name": "Marina", "asset": "marina", "voice": "pt-BR-FranciscaNeural"}
+    }
+  },
+  "scenes": [
+    {"id": "choque", "speaker": "marina", "emotion": "surprised", "gesture": "none",
+     "narration": "Espera... foi você quem contou o meu segredo para todo mundo?!"},
+    {"id": "magoa", "speaker": "marina", "emotion": "neutral", "gesture": "none",
+     "narration": "Eu confiei em você durante anos, e é assim que me agradece?"},
+    {"id": "virada", "speaker": "marina", "emotion": "happy", "gesture": "none",
+     "narration": "Mas sabe de uma coisa? Eu também tenho um segredo seu."},
+    {"id": "gancho", "speaker": "marina", "emotion": "happy", "gesture": "none",
+     "narration": "E ele vai ao ar no capítulo de amanhã!"}
+  ]
+}

@@ -49,6 +49,20 @@ class ImagesTest(unittest.TestCase):
         self.assertEqual(len(posts), 2)  # 1ª recusada (400), 2ª aceita
         self.assertIn('/v1/models/gemini-3.1-flash-image:generateContent', posts[1][1])
 
+    def test_gemini_aceita_imagem_de_referencia_e_sufixo_proprio(self):
+        ref = fake_apis.fake_png(64, 64)
+        cfg = {**images_ai.DEFAULTS['gemini'], 'aspect': '3:4', 'references': [('image/png', ref)], 'prompt_suffix': ''}
+        data = images_ai.gen_gemini('same character, happy', cfg, 1)
+        self.assertEqual(data[:4], b'\x89PNG')
+        parts = [r for r in fake_apis.State.requests if r[0] == 'POST'][-1][3]['contents'][0]['parts']
+        self.assertEqual(len(parts), 2)  # referência primeiro, texto depois
+        self.assertEqual(parts[0]['inlineData']['mimeType'], 'image/png')
+        self.assertEqual(parts[1]['text'], 'same character, happy')  # sem "Widescreen 16:9" quando o sufixo é ''
+        # sem referências nem sufixo: o comportamento de sempre (um único texto, com o sufixo padrão)
+        images_ai.gen_gemini('um monitor', dict(images_ai.DEFAULTS['gemini']), 1)
+        parts = [r for r in fake_apis.State.requests if r[0] == 'POST'][-1][3]['contents'][0]['parts']
+        self.assertEqual(parts, [{'text': 'um monitor. Widescreen 16:9 composition.'}])
+
     def test_pollinations_free(self):
         path, _ = self.bank(provider='pollinations').get('01', 'leito vazio')
         self.assertTrue(path.exists())

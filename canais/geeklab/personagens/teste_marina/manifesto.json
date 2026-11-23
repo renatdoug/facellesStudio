@@ -1,0 +1,70 @@
+{
+  "marina_01_neutra": {
+    "format": "JPEG",
+    "mode": "RGB",
+    "size": [
+      1792,
+      2400
+    ],
+    "bytes": 1984623,
+    "has_real_transparency": false,
+    "prompt": "A single original adult female character for an animated Brazilian telenovela, 2D cartoon style, clean bold dark outlines, flat colors with subtle cel shading, expressive large eyes. She has medium-tan skin, shoulder-length wavy dark-brown hair with a side part, warm brown eyes, a mustard-yellow cardigan over a white blouse, and dark navy trousers. No accessories. Three-quarter length view from the top of the head to mid-thigh, perfectly front-facing and centered, arms relaxed at her sides, shoulders level, the same camera distance and framing every time. Plain solid flat pure magenta background (#FF00FF), no floor, no shadow, no gradient, no scenery, nothing else in the image. No text, no letters, no watermark, no logo. Expression: neutral and calm, mouth gently CLOSED, eyes open and looking straight at the viewer, eyebrows relaxed.",
+    "seconds": 14.7,
+    "model": "gemini-3.1-flash-image",
+    "image_size": "2K",
+    "aspect": "3:4",
+    "used_reference": false,
+    "file": "marina_01_neutra.jpg"
+  },
+  "marina_02_feliz": {
+    "format": "JPEG",
+    "mode": "RGB",
+    "size": [
+      1792,
+      2400
+    ],
+    "bytes": 1637802,
+    "has_real_transparency": false,
+    "prompt": "This is the same character as the reference image. Redraw EXACTLY this character: identical face shape, eyes, nose, hair, skin tone, outfit, colors, body proportions, line style, pose, camera distance, framing and position in the image, and the same flat magenta background. Change ONLY the facial expression. Expression: happy, a warm broad smile with the mouth closed or only slightly open, cheeks lifted, eyes bright, eyebrows relaxed and slightly raised. No text, no watermark.",
+    "seconds": 15.4,
+    "model": "gemini-3.1-flash-image",
+    "image_size": "2K",
+    "aspect": "3:4",
+    "used_reference": true,
+    "file": "marina_02_feliz.jpg"
+  },
+  "marina_03_surpresa": {
+    "format": "JPEG",
+    "mode": "RGB",
+    "size": [
+      1792,
+      2400
+    ],
+    "bytes": 1627209,
+    "has_real_transparency": false,
+    "prompt": "This is the same character as the reference image. Redraw EXACTLY this character: identical face shape, eyes, nose, hair, skin tone, outfit, colors, body proportions, line style, pose, camera distance, framing and position in the image, and the same flat magenta background. Change ONLY the facial expression. Expression: surprised, eyebrows raised high, eyes wide open, mouth open in a small round \"o\" shape. No text, no watermark.",
+    "seconds": 15.5,
+    "model": "gemini-3.1-flash-image",
+    "image_size": "2K",
+    "aspect": "3:4",
+    "used_reference": true,
+    "file": "marina_03_surpresa.jpg"
+  },
+  "marina_04_falando": {
+    "format": "JPEG",
+    "mode": "RGB",
+    "size": [
+      1792,
+      2400
+    ],
+    "bytes": 1601816,
+    "has_real_transparency": false,
+    "prompt": "This is the same character as the reference image. Redraw EXACTLY this character: identical face shape, eyes, nose, hair, skin tone, outfit, colors, body proportions, line style, pose, camera distance, framing and position in the image, and the same flat magenta background. Change ONLY the facial expression. Expression: speaking mid-sentence, mouth moderately OPEN as if saying \"ah\" with the upper teeth and a bit of tongue visible, eyes open and looking at the viewer, eyebrows relaxed. No text, no watermark.",
+    "seconds": 15.3,
+    "model": "gemini-3.1-flash-image",
+    "image_size": "2K",
+    "aspect": "3:4",
+    "used_reference": true,
+    "file": "marina_04_falando.jpg"
+  }
+}

@@ -15,6 +15,7 @@ import unicodedata
 import zlib
 from pathlib import Path
 
+import numpy as np
 from PIL import Image, ImageDraw, ImageOps
 
 INK = (22, 22, 22)
@@ -45,7 +46,7 @@ PRESETS = {
     'nurse': {'outfit': 'scrubs', 'accessories': ['stethoscope', 'badge', 'pen'], 'hair': 'short',
               'hair_color': [30, 30, 30], 'shirt': [104, 104, 104], 'pants': [118, 118, 118], 'glasses': False},
 }
-BACKGROUNDS = ('room', 'plain')
+BACKGROUNDS = ('room', 'plain', 'soft')
 SIDES = ('left', 'right')
 MAX_CHARACTERS = 2
 
@@ -92,6 +93,14 @@ def validate_toon(toon) -> None:
             raise ValueError(f'Personagem "{cid}": deve ser um objeto.')
         if raw.get('hair', 'none') not in HAIRS:
             raise ValueError(f'Personagem "{cid}": "hair" deve ser ' + ', '.join(HAIRS) + '.')
+        if raw.get('asset') is not None:
+            from . import cutout
+            if not isinstance(raw['asset'], str) or not cutout.ASSET_NAME.fullmatch(raw['asset']):
+                raise ValueError(f'Personagem "{cid}": "asset" deve ser o nome de uma pasta da biblioteca "personagens/" '
+                                 '(letras, números, "_" e "-").')
+            scale = raw.get('scale')
+            if scale is not None and (isinstance(scale, bool) or not isinstance(scale, (int, float)) or not 0.2 <= scale <= 1.5):
+                raise ValueError(f'Personagem "{cid}": "scale" deve ser a largura da personagem em relação à tela (0,2 a 1,5).')
         if raw.get('preset') is not None and raw['preset'] not in PRESETS:
             raise ValueError(f'Personagem "{cid}": "preset" deve ser ' + ', '.join(PRESETS) + '.')
         if raw.get('outfit', 'casual') not in OUTFITS:
@@ -461,8 +470,10 @@ class Actor:
             a = _ease(t / 0.3)
             tl = EMOTIONS[self.emotion_name]['look']
             look = (_lerp(look[0], tl[0], a), _lerp(look[1], tl[1], a))
+        delay = 0.0 if self.speaking else REACT_DELAY
         return {'emotion': emo, 'mouth': m, 'mouth_w': mw, 'blink': self._blink(t), 'look': look, 'bob': bob,
-                'lean': lean, 'tilt': tilt, 'nod': nod, 'arm_osc': osc, 'gesture': self._gesture(t)}
+                'lean': lean, 'tilt': tilt, 'nod': nod, 'arm_osc': osc, 'gesture': self._gesture(t),
+                'expr': (self.emotion_name, _ease((t - delay) / 0.22)), 'breath': 2 * math.pi * 0.27 * t + ph}
 
 
 # ------------------------------------------------------------------ cenário e câmera
@@ -470,6 +481,14 @@ class Actor:
 def draw_room(w: int, h: int, ss: int = 2, style: str = 'room') -> Image.Image:
     """Cenário em preto e branco, com piso em perspectiva (ou liso, com 'plain')."""
     S = ss
+    if style == 'soft':  # degradê vertical pastel com leve vinheta: não briga com personagens ilustrados
+        top, bot = np.array([226, 214, 232], dtype=np.float32), np.array([245, 226, 214], dtype=np.float32)
+        t = np.linspace(0, 1, h * S, dtype=np.float32)[:, None, None]
+        grad = (top * (1 - t) + bot * t) * np.ones((1, w * S, 1), dtype=np.float32)
+        yy, xx = np.mgrid[0:h * S, 0:w * S].astype(np.float32)
+        r = np.sqrt(((xx / (w * S) - 0.5) / 0.75) ** 2 + ((yy / (h * S) - 0.45) / 0.75) ** 2)
+        grad *= (1.0 - 0.10 * np.clip(r - 0.35, 0, 1))[..., None]
+        return Image.fromarray(np.clip(grad, 0, 255).astype(np.uint8))
     img = Image.new('RGB', (w * S, h * S), (236, 236, 236))
     d = ImageDraw.Draw(img)
     floor_y = h * 0.70
@@ -526,14 +545,30 @@ class Stage:
 
     def __init__(self, w: int, h: int, characters: dict, background: str = 'room', ss: int = 2,
                  base_dir: Path | None = None, font_path=None):
-        self.w, self.h, self.ss = w, h, ss
+        self.w, self.h = w, h
         self.font_path = font_path
         self.chars = {cid: character_spec(cid, raw, i) for i, (cid, raw) in enumerate(characters.items())}
+        # só personagens por recortes: as imagens já têm alta resolução, então não precisa do supersampling 2x (4x mais rápido)
+        self.ss = 1 if self.chars and all(sp.get('asset') for sp in self.chars.values()) else ss
+        ss = self.ss
         self.bg = load_background(background, w, h, ss, base_dir)
         self.unit = 1.30 * min(w, h * 9 / 16) / 1080  # pixels (saída) por unidade do desenho
         self.base_y = h * 0.90  # pés baixos no quadro: sobra parede para a legenda e para a ilustração (`demo`)
         n = len(self.chars)
         self.x = {cid: w * (0.5 if n == 1 else (0.26 if spec['side'] == 'left' else 0.74)) for cid, spec in self.chars.items()}
+        self.cut, self.cut_head = {}, {}  # personagens por recortes: arquivo carregado e altura (px) do rosto, no quadro
+        for cid, spec in self.chars.items():
+            if spec.get('asset'):
+                from . import cutout
+                folder = cutout.find_asset(spec['asset'], base_dir)
+                if spec.get('scale') is not None:  # largura (relativa à tela) que a imagem inteira teria
+                    asset = cutout.CutoutAsset(folder, width_px=round(w * ss * float(spec['scale'])))
+                elif n == 1:  # sozinha: a figura ocupa 80% da altura (a cabeça fica abaixo da legenda do topo)
+                    asset = cutout.CutoutAsset(folder, height_px=round(0.80 * h * ss))
+                else:
+                    asset = cutout.CutoutAsset(folder, width_px=round(w * ss * 0.85))
+                self.cut[cid] = asset
+                self.cut_head[cid] = h - (self.cut[cid].h - self.cut[cid].face_cy) / ss  # y (px de saída) do centro do rosto
 
     # ---- câmera
 
@@ -577,7 +612,9 @@ class Stage:
                     cx = min(max(cx, lim + cw / 2), w - cw / 2)
             cx = min(max(cx, cw / 2), w - cw / 2)
             ch = cw * h / w
-            cy = self.base_y - cy_units * self.unit
+            cy = self.cut_head[subject] if subject in self.cut_head else self.base_y - cy_units * self.unit
+            if subject in self.cut_head:  # o rosto fica um pouco abaixo do centro: a legenda do topo não cobre os olhos
+                cy -= 0.07 * ch
         if mode == 'wide' or (listener is None and mode == 'reaction'):
             cy = h * 0.5
         cy = min(max(cy, ch / 2), h - ch / 2)
@@ -657,6 +694,13 @@ class Stage:
         order = sorted(self.chars, key=lambda c: (c == speaker, self.x[c]))  # quem fala fica por cima
         for cid in order:
             spec = self.chars[cid]
+            if cid in self.cut:  # personagem por recortes: figura colada na base do quadro (termina na coxa)
+                pose = actors[cid].pose(t)
+                layer = self.cut[cid].render(pose)
+                px = int(self.x[cid] * self.ss - layer.width / 2)
+                py = int(self.h * self.ss - layer.height + pose['bob'] * 0.5 * self.unit * self.ss)
+                canvas.paste(layer, (px, py), layer)
+                continue
             facing = 1 if len(self.chars) == 1 or spec['side'] == 'left' else -1  # um olha para o outro
             layer = draw_character(spec, actors[cid].pose(t), k, facing=facing)
             px = int(self.x[cid] * self.ss - layer.width / 2)

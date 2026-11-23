@@ -99,6 +99,7 @@ pelo programa: a boca abre e fecha junto com a fala, piscam, mudam de expressão
   `background`: `room` (sala em preto e branco), `plain` (fundo liso) ou o caminho de uma imagem. Por personagem:
   `voice`, `side` (`left` ou `right`), `hair` (`none`, `ponytail`, `bob`, `spiky`), `hair_color`, `shirt`, `pants` (cores `[R, G, B]`) e `glasses`.
   `hair` também aceita `short`. Roupa: `outfit` (`casual`, `scrubs` = pijama cirúrgico, `coat` = jaleco) e `accessories` (lista com `stethoscope`, `badge`, `pen`).
+  `asset` usa uma personagem ILUSTRADA da biblioteca (`personagens/<nome>/`, já criada pelo usuário); **não invente nomes**: só use se o usuário informar. Com `asset`, `hair`, `outfit` e cores não valem.
   `preset` aplica um personagem pronto: `nurse` (`"preset": "nurse"`) = enfermeiro (scrub, estetoscópio, crachá, caneta); o que você escrever por cima prevalece.
 - Em cada cena de cartum use `speaker` (o `id` do personagem que fala) e `narration` (a fala). Opcionais:
   `emotion` de quem fala e `reaction` de quem escuta: `neutral`, `happy`, `angry`, `sad`, `surprised`, `thinking`, `smug`;

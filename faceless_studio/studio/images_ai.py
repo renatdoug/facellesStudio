@@ -119,7 +119,12 @@ def gen_gemini(prompt, cfg, seed):
     img = {'aspectRatio': cfg.get('aspect', '16:9')}
     if cfg.get('image_size') and 'lite' not in model:
         img['imageSize'] = cfg['image_size']
-    contents = [{'parts': [{'text': prompt + '. Widescreen 16:9 composition.'}]}]
+    # `references` (opcional): imagens de referência [(mime, bytes)] enviadas ANTES do texto, para o modelo manter o mesmo
+    # personagem/estilo (edição por imagem). `prompt_suffix` troca o "Widescreen 16:9" padrão (use '' em retrato/personagens).
+    parts = [{'inlineData': {'mimeType': mime, 'data': base64.b64encode(data).decode('ascii')}}
+             for mime, data in (cfg.get('references') or [])]
+    parts.append({'text': prompt + cfg.get('prompt_suffix', '. Widescreen 16:9 composition.')})
+    contents = [{'parts': parts}]
     # A API já usou nomes diferentes para a configuração de proporção; tentamos em ordem.
     attempts = [
         ('v1beta', {'responseModalities': ['IMAGE'], 'imageConfig': img}),
