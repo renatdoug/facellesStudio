@@ -1,5 +1,6 @@
 """Renderização de cada cena (movimento de câmera, legenda, fades) e junção das cenas."""
 import hashlib
+import subprocess
 from pathlib import Path
 
 from .util import StudioError, media_duration, run
@@ -130,6 +131,41 @@ def render_video_scene(clip, shade, ass_name, out, frames, w, h, fps, fade_in, f
     run(['ffmpeg', '-y', '-loglevel', 'error', '-stream_loop', '-1', '-i', clip, '-loop', '1', '-i', shade,
          '-filter_complex', ','.join(chain), '-frames:v', frames, '-r', fps, '-c:v', 'libx264',
          '-preset', preset, '-crf', crf, '-pix_fmt', 'yuv420p', '-an', out], cwd=cwd)
+
+
+def render_frames(frames, ass_name, out, nframes, w, h, fps, fade_in, fade_out, fade_s, cwd, preset='veryfast',
+                  crf=20, entry='cut'):
+    """Cena a partir de QUADROS gerados por código (bonecos animados): os quadros RGB (bytes) entram pelo stdin do
+    FFmpeg, que aplica a legenda e os fades. `frames` deve entregar exatamente `nframes` quadros w x h."""
+    seconds = nframes / fps
+    vf = [f'ass={ass_name}:fontsdir=fonts', 'setsar=1']
+    if fade_in:
+        vf.append(f'fade=t=in:st=0:d={fade_s}')
+    elif entry == 'flash':
+        vf.append(f'fade=t=in:st=0:d={FLASH_S}:color=white')
+    if fade_out:
+        vf.append(f'fade=t=out:st={max(0, seconds - fade_s):.3f}:d={fade_s}')
+    vf.append('format=yuv420p')
+    cmd = ['ffmpeg', '-y', '-loglevel', 'error', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', f'{w}x{h}', '-r', str(fps),
+           '-i', '-', '-vf', ','.join(vf), '-frames:v', str(nframes), '-r', str(fps), '-c:v', 'libx264', '-preset', preset,
+           '-crf', str(crf), '-pix_fmt', 'yuv420p', '-an', str(out)]
+    log = Path(cwd) / (Path(out).stem + '.ffmpeg.log')
+    with open(log, 'wb') as err:
+        proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=err, cwd=str(cwd))
+        try:
+            for frame in frames:
+                proc.stdin.write(frame)
+        except BrokenPipeError:  # o FFmpeg encerrou antes: o motivo está no log
+            pass
+        finally:
+            try:
+                proc.stdin.close()
+            except OSError:
+                pass
+        code = proc.wait()
+    if code:
+        raise StudioError('Falha ao montar a cena de bonecos:\n' + log.read_text(encoding='utf-8', errors='replace')[-2000:])
+    log.unlink(missing_ok=True)
 
 
 def concat_files(paths, list_file, out):

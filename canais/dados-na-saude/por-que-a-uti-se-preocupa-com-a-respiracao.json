@@ -1,0 +1,45 @@
+{
+  "title": "Por que a UTI se preocupa com a respiração",
+  "channel": "",
+  "theme": "health",
+  "resolution": "1080x1920",
+  "fps": 30,
+  "voice": "pt-BR-FranciscaNeural",
+  "subtitles": "pop",
+  "default_transition": "punch",
+  "pause": 0.2,
+  "images": {
+    "provider": "gemini",
+    "style": "editorial digital illustration, clean flat shapes, soft cinematic lighting, dark navy and teal palette, no identifiable faces, screens show only abstract waveforms with no digits, tall vertical full-bleed composition that fills the entire frame edge to edge, no empty margins or flat bands",
+    "seed": 1234
+  },
+  "scenes": [
+    {
+      "id": "cena1",
+      "title": "Quase metade das admissões na",
+      "narration": "Quase metade das admissões na UTI é respiratória, segundo o estudo publicado em 2023.",
+      "prompt": "Illustration that visually represents this idea: Quase metade das admissões na UTI é respiratória, segundo o estudo publicado em 2023."
+    },
+    {
+      "id": "cena2",
+      "title": "O Dr Silva explica que",
+      "narration": "O Dr. Silva explica que isso ocorre, por exemplo, em pneumonias graves.",
+      "prompt": "Illustration that visually represents this idea: O Dr. Silva explica que isso ocorre, por exemplo, em pneumonias graves."
+    },
+    {
+      "id": "cena3",
+      "title": "Outra parte vem do coração",
+      "narration": "Outra parte vem do coração e do cérebro.",
+      "prompt": "Illustration that visually represents this idea: Outra parte vem do coração e do cérebro."
+    },
+    {
+      "id": "cena4",
+      "title": "Por isso a equipe olha",
+      "narration": "Por isso a equipe olha primeiro as vias aéreas e a respiração.",
+      "prompt": "Illustration that visually represents this idea: Por isso a equipe olha primeiro as vias aéreas e a respiração."
+    }
+  ],
+  "fontes": [
+    "Autor et al., Revista Brasileira de Terapia Intensiva, 2023"
+  ]
+}

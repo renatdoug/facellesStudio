@@ -54,14 +54,16 @@ export default function Stage(p: Props) {
       {p.view === 'scene' && p.scene && p.info && (
         <div className="canvas-wrap">
           <div className={'canvas' + (p.aspect.startsWith('9') ? ' tall' : '')} style={{ aspectRatio: p.aspect }}>
-            {p.info.layout === 'video'
+            {p.info.layout === 'toon'
+              ? <div className="placeholder">🎭 Cena de bonecos{p.scene.speaker ? ` — fala: ${p.scene.speaker}` : ''}<br /><small>Veja o movimento em “Prévia desta cena”.</small></div>
+              : p.info.layout === 'video'
               ? (p.info.video?.url
                 ? <video key={p.info.video.url + (p.scene.video_start ?? 0)} src={`${p.info.video.url}#t=${p.scene.video_start ?? 0}`}
                          muted loop controls playsInline />
                 : <div className="placeholder">{p.scene.video ? 'Pré-visualização indisponível (salve para conferir)' : 'Escolha um vídeo no painel à direita'}</div>)
               : p.info.image?.url ? <img src={p.info.image.url} alt="" />
                 : <div className="placeholder">{p.info.layout === 'image' ? 'Imagem ainda não gerada' : kindLabel(p.info.layout)}</div>}
-            {p.info.layout !== 'image' && p.info.layout !== 'video' && <Summary scene={p.scene} layout={p.info.layout} />}
+            {p.info.layout !== 'image' && p.info.layout !== 'video' && p.info.layout !== 'toon' && <Summary scene={p.scene} layout={p.info.layout} />}
             {p.scene.headline && p.info.layout !== 'video' && <div className="headline">{p.scene.headline}</div>}
             {p.info.image?.stale && <div className="badge warn">Prompt alterado — gere de novo</div>}
           </div>

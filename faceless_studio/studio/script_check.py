@@ -10,15 +10,16 @@ Serve a importação de roteiros escritos por IA (guia_roteiro_ia.md) e ao edito
 import difflib
 from pathlib import Path
 
-from . import layouts, subtitles, video
+from . import layouts, subtitles, toon, video
 
 # Campos que o motor lê. Mantido em sincronia com o guia (tests/test_import.py confere os dois).
 SCRIPT_KEYS = ('title', 'channel', 'theme', 'voice', 'rate', 'resolution', 'fps', 'subtitles', 'default_transition', 'pause',
                'music', 'music_volume_db', 'motion_amount', 'font_bold', 'font_regular', 'images', 'scenes',
-               'revisar')
+               'revisar', 'fontes', 'toon')
 SCENE_KEYS = ('id', 'title', 'headline', 'narration', 'prompt', 'image', 'video', 'video_start', 'video_end',
               'layout', 'transition', 'motion', 'motion_amount', 'overlay_title', 'callouts', 'chapter', 'visual',
-              'items', 'number', 'chart', 'compare', 'quote', 'revisar')
+              'items', 'number', 'chart', 'compare', 'quote', 'revisar', 'speaker', 'emotion', 'reaction', 'gesture',
+              'camera', 'voice')
 CHART_KEYS = ('type', 'labels', 'values', 'series', 'unit', 'decimals', 'highlight', 'source', 'on_words',
               'orient', 'zero', 'animate', 'on_word', 'at')
 NUMBER_KEYS = ('value', 'decimals', 'prefix', 'suffix', 'label', 'source', 'on_word', 'at')
@@ -74,8 +75,7 @@ def _check_chart(spec, n):
         out.append(_issue('aviso', n, 'chart.on_words', '"on_words" deve ser uma lista com no máximo um item por rótulo.'))
     source = str(spec.get('source', '')).strip()
     if not source:
-        out.append(_issue('verificar', n, 'chart.source', 'Gráfico sem "source": confirme a origem dos dados antes de '
-                                                          'publicar.'))
+        out.append(_issue('verificar', n, 'chart.source', 'Gráfico sem fonte: informe a origem do dado (autor, revista, ano) em "source".'))
     elif 'ilustrativ' in source.lower() or 'verificar' in source.lower():
         out.append(_issue('verificar', n, 'chart.source', f'Dados marcados como "{source}": substitua pelos dados '
                                                           f'reais e cite a fonte antes de publicar.'))
@@ -90,7 +90,7 @@ def _check_number(spec, n):
         out.append(_issue('erro', n, 'number.value', '"number.value" precisa ser um número (sem aspas).'))
     source = str(spec.get('source', '')).strip()
     if not source:
-        out.append(_issue('verificar', n, 'number.source', 'Número sem "source": confirme a origem antes de publicar.'))
+        out.append(_issue('verificar', n, 'number.source', 'Número sem fonte: informe a origem do dado (autor, revista, ano) em "source".'))
     elif 'ilustrativ' in source.lower() or 'verificar' in source.lower():
         out.append(_issue('verificar', n, 'number.source', f'Número marcado como "{source}": substitua pelo dado '
                                                            f'real e cite a fonte antes de publicar.'))
@@ -183,4 +183,5 @@ def check(data, project_dir=None):
 
 # Valores aceitos pelos campos de escolha: o guia cita estas listas, e um teste confere que seguem iguais.
 CHOICES = {'transition': video.ENTRIES, 'motion': video.MOTIONS, 'subtitles': subtitles.CAPTION_MODES,
-           'layout': layouts.LAYOUTS}
+           'layout': layouts.LAYOUTS, 'emotion': tuple(toon.EMOTIONS), 'gesture': toon.GESTURES, 'camera': toon.CAMERAS,
+           'hair': toon.HAIRS}

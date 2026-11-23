@@ -194,7 +194,7 @@ needs_ffmpeg = pytest.mark.skipif(not (shutil.which('ffmpeg') and shutil.which('
 def test_nome_seguro_de_arquivo():
     from webui.library import safe_name
     assert safe_name('Ação  do dia (1).MOV') == 'Acao_do_dia_1.mov'
-    assert safe_name('..\..\etc\passwd.mp4') == 'passwd.mp4'
+    assert safe_name(r'..\..\etc\passwd.mp4') == 'passwd.mp4'
     assert safe_name('C:/x/y/clip.webm') == 'clip.webm'
     assert safe_name('.mp4') is None  # arquivo oculto, sem nome
     assert safe_name('___.mp4') == 'video.mp4'

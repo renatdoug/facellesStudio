@@ -12,8 +12,8 @@
     {
       "title": "Gancho",
       "headline": "VOCÊ SABIA?",
-      "narration": "Quase metade das admissões na UTI começa por um problema respiratório.",
-      "number": {"value": 42, "suffix": "%", "label": "das admissões são respiratórias", "source": "Dados ilustrativos — substitua pelos seus", "on_word": "metade"}
+      "narration": "Quase metade das admissões na UTI é respiratória.",
+      "number": {"value": 42, "suffix": "%", "label": "das admissões são respiratórias", "source": "Dados ilustrativos — substitua pelos seus", "at": 0}
     },
     {
       "title": "Causas",
@@ -32,7 +32,6 @@
     {
       "title": "Fecho",
       "headline": "SEGUE O CANAL",
-      "transition": "fade",
       "narration": "Siga o canal para ver mais dados que ajudam a cuidar melhor."
     }
   ]

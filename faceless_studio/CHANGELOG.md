@@ -1,5 +1,53 @@
 # Changelog
 
+## v0.10.0 — bonecos animados (cartum) — MVP
+
+Pedido do Renato: vídeos de **bonecos de palito/cartum que se mexem**, como os Shorts de humor (referência: @meme_animado), começando pelo canal GeekLab, com dois personagens em diálogo.
+- **Novo tipo de cena "cartum"** (`studio/toon.py`): personagens **desenhados por código** (sem IA e sem custo por vídeo) em cima de um cenário em preto e branco. Cada fala é uma cena com `speaker`, `emotion`, `reaction`, `gesture`, `camera` e (opcional) `voice`.
+- **Animação**: boca que abre e fecha a cada sílaba, **sincronizada com o tempo de cada palavra**; piscar; olhar (quem escuta olha para quem fala); balanço e respiração; gestos (apontar, mãos na cintura, abrir os braços, dar de ombros); 7 emoções (neutra, feliz, brava, triste, surpresa, pensando, convencida) com sobrancelhas, pálpebras e boca próprias. **Câmera**: 1ª cena em plano aberto, depois close em quem fala com leve aproximação; o outro personagem aparece na borda.
+- Personagens independentes do cenário e da narração: ficha por personagem (`hair`: none/ponytail/bob/spiky, cores, `glasses`, `voice`, `side`) e `toon.background` (`room`, `plain` ou uma imagem sua). Até 2 personagens por enquanto.
+- **Duas vozes**: cada personagem tem a sua voz (`pt-BR-FranciscaNeural`, `pt-BR-AntonioNeural`...); `main.py` usa a voz da cena > a do personagem > a do roteiro.
+- **Legenda `topbox`**: a frase inteira em caixa preta no topo (fora das áreas cobertas pela interface do Shorts), como no vídeo de referência.
+- **Roteiro por texto**: cole um diálogo `Leo: ...` / `Ana (pensativa): ...` / `Leo [aponta]: ...` em **Importar roteiro** e o Studio monta o vídeo (emoção entre parênteses; gesto e câmera entre colchetes; sem marcação, a emoção vem da pontuação). Detecta diálogo com exatamente 2 nomes e ao menos 3 falas; a voz vem do nome (terminado em "a" = feminina), sem repetir a mesma nos dois; falas longas são divididas por frases.
+- Interface: cenas aparecem como "Cartum" com os campos de quem fala, emoção, reação, gesto e câmera.
+- Guia de IA ganhou a seção 5.1 (cartum). Achados nos testes: o piscar podia nunca fechar o olho por completo (corrigido com trecho fechado de 0,06 s); a medição do tamanho dos bonecos agora usa o menor lado útil (também serve ao horizontal).
+- Limites do MVP: só em pé (sem sentar/andar), 2 personagens, cenário simples, voz sintética (sem timing de humor). 31 testes novos (total: 178), incluindo renderizações reais (boca em movimento, legenda no topo, troca de plano).
+
+## v0.9.1 — legenda legível no vertical
+
+Achado no Short vertical com 4 ilustrações: a palavra falada (verde-água) caía sobre partes claras e também verde-água da imagem.
+- O escurecimento da base (feito para a legenda ficar legível) era o do horizontal, onde a legenda fica na base. No **vertical** ela fica em ~75% da altura, onde o escurecimento era só ~17%. Agora, em imagens e vídeos verticais, o degradê começa mais cedo e já está em ~66% na altura da legenda (o meio da imagem continua limpo; o horizontal não muda). Conferido num quadro antes/depois. 1 teste novo.
+- **Guia de IA**: cada prompt de imagem deve ilustrar o que a narração diz *naquela* cena (função narrativa clara), sem imagens só decorativas.
+- Custo do Gemini reconfirmado: 4 imagens = R$ 2,49 (saldo 27,51 -> 25,02), a estimativa da prévia era R$ 2,48.
+
+## v0.9.0 — colar o roteiro em texto
+
+Pedido do Renato: "seria mais prático se eu apenas colocasse um roteiro" (sem JSON).
+- **Importar roteiro agora aceita texto simples** (sem IA e sem custo): um parágrafo (linha em branco) vira uma cena; texto corrido ou parágrafo longo é dividido por frases e reagrupado até o tamanho de cena escolhido (curtas ~14 palavras, médias ~24, longas ~45; automático: curtas no vertical, longas no horizontal). A divisão protege abreviações ("Dr. Silva", "p. ex.", iniciais) e nunca corta uma frase no meio. Primeira linha `Título: ...` (ou `# ...`) define o título; blocos que começam com `Fonte:`/`Fontes:`/`Referências:` **não são narrados** e vão para o campo novo `fontes`.
+- Opções na própria janela: **formato** (vertical, horizontal, quadrado), tamanho das cenas, **imagens** (uma por cena ou só texto), gerador (Gemini, OpenAI, Pollinations), voz e título. Vertical sai com legenda `pop`, `punch` e o prompt de imagem "full-bleed"; horizontal com karaokê. Cada imagem parte do texto da cena (`prompt`), para refinar no editor.
+- A prévia mostra as cenas, o tempo e **quantas imagens de IA serão geradas e o custo estimado**: ≈ R$ 0,62 por imagem do Gemini (medido por você: 3 imagens = R$ 1,87, igual em 16:9 e 9:16). Nada é gerado ao importar.
+- O JSON de uma IA continua funcionando (detectado por começar com `{` ou vir em bloco ```json).
+- **Guia de IA**: sem "A VERIFICAR" no vídeo. A IA usa só os dados e fontes que você fornecer (copiados exatamente, com a fonte em `source`); sem dado fornecido, **não cria número nem gráfico** e registra a lacuna em `revisar` (nota interna, nunca aparece no vídeo). O pedido ganhou o campo "Dados e fontes que EU forneço".
+- O verificador continua só lembrando de gráfico/número sem fonte (nunca bloqueia).
+- 16 testes novos de texto simples (divisão, abreviações, fontes, opções, custo, API, validação do roteiro gerado) e a suíte inteira: 146.
+
+## v0.8.3 — imagens verticais e prompt vazio
+
+Achados no 1º Short com imagens do Gemini (9:16):
+- **Editor**: apagar todo o texto do prompt trocava a cena para "Cartão" e o campo sumia. Agora a cena continua do tipo Imagem (o aviso de "sem prompt" aparece no topo).
+- **Motor**: cena de imagem com prompt vazio agora **para antes de chamar o fornecedor**, em vez de gerar (e cobrar) uma imagem só com o estilo. 1 teste novo.
+- **Prompt vertical**: o Gemini devolveu uma cena horizontal no meio de um fundo liso quando o prompt não pedia que a imagem ocupasse o quadro. O exemplo `exemplo_shorts_imagens.json` e o guia de IA agora pedem `tall vertical full-bleed illustration that fills the entire frame edge to edge, no empty margins or flat bands`.
+- **Tarja (`callouts`) não cobre mais o nome do canal**: nas cenas de texto (gráfico, número, cartão...) ela desce abaixo do "DADOS NA SAÚDE" do canto; nas de imagem/vídeo continua no alto. O título dá mais espaço à tarja. 1 teste novo.
+- Novo exemplo `exemplo_shorts_imagens.json` (Short vertical com 2 imagens do Gemini e 2 gráficos), validado junto com os outros exemplos por um teste.
+
+## v0.8.2 — gancho: o vídeo começa na hora
+
+Achado no 1º Short vertical real: nos primeiros ~1,5 s a tela ficava só com o título (o número entrava na palavra "metade"), depois de 0,5 s de preto e silêncio.
+- **Primeira cena com `punch` ou `flash` começa NA HORA**: sem os 0,5 s de entrada do preto (o vídeo fica 0,5 s mais curto) e com o **título já opaco no 1º quadro** (sem o fade de 0,3 s). Com `cut` ou `fade` nada muda (continua a entrada suave do preto).
+- Número/gráfico aceitam `"at": 0` para já estarem na tela no primeiro quadro; o número passa a **contar durante o primeiro segundo**.
+- `exemplo_shorts.json` e o guia de IA ganharam as regras de gancho: 1ª frase com até 8 palavras, elemento principal já na tela (`"at": 0`), `punch`/`flash` na 1ª cena. O exemplo também deixou de usar `fade` (acrescentava ~1 s de silêncio).
+- Testes: 3 novos (total: 125), incluindo uma renderização que compara o 1º quadro com e sem a entrada instantânea.
+
 ## v0.8.1 — pausa entre as cenas
 
 Achado no primeiro teste real com voz (medido no vídeo): havia **1,4 s de silêncio entre as cenas** (2,1 s com `fade`).

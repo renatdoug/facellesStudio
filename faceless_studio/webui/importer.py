@@ -8,7 +8,7 @@ import unicodedata
 from pathlib import Path
 
 import main as engine
-from studio import layouts, script_check
+from studio import layouts, script_check, text_script
 from studio.util import StudioError
 
 MAX_CHARS = 2_000_000
@@ -47,26 +47,41 @@ def _json_error(text: str, err: json.JSONDecodeError) -> str:
     return f'JSON inválido (linha {err.lineno}, coluna {err.colno}): {err.msg}.{where}{tip}'
 
 
-def analyze(text: str, project_dir: Path | None = None) -> dict:
-    """Lê o texto colado e devolve {ok, error, notes, summary, issues, data}. Nunca grava nada."""
-    result = {'ok': False, 'error': None, 'notes': [], 'summary': None, 'issues': [], 'data': None}
+def looks_like_json(text: str) -> bool:
+    """JSON (de uma IA) começa com { ou vem num bloco ```json; qualquer outra coisa é roteiro em texto simples."""
+    raw = text.lstrip('\ufeff').lstrip()
+    return raw.startswith('{') or bool(_FENCE.search(raw))
+
+
+def analyze(text: str, project_dir: Path | None = None, options: dict | None = None) -> dict:
+    """Lê o texto colado (roteiro em texto simples OU JSON) e devolve {ok, error, notes, summary, issues, data}.
+    Nunca grava nada. `options` só vale para texto simples (formato, imagens, voz...; ver studio/text_script.py)."""
+    result = {'ok': False, 'error': None, 'notes': [], 'summary': None, 'issues': [], 'data': None, 'mode': 'json'}
     if not text or not text.strip():
-        result['error'] = {'message': 'Cole aqui o JSON gerado pela IA.', 'scene': None}
+        result['error'] = {'message': 'Cole o roteiro (texto simples) ou o JSON gerado por uma IA.', 'scene': None}
         return result
     if len(text) > MAX_CHARS:
         result['error'] = {'message': 'Texto grande demais para ser um roteiro.', 'scene': None}
         return result
-    body, notes = extract_json(text)
-    result['notes'] = notes
-    try:
-        data = json.loads(body)
-    except json.JSONDecodeError as err:
-        result['error'] = {'message': _json_error(body, err), 'scene': None}
-        return result
-    if not isinstance(data, dict):
-        result['error'] = {'message': 'O roteiro precisa ser um objeto JSON, começando com { e terminando com }.',
-                           'scene': None}
-        return result
+    if looks_like_json(text):
+        body, notes = extract_json(text)
+        result['notes'] = notes
+        try:
+            data = json.loads(body)
+        except json.JSONDecodeError as err:
+            result['error'] = {'message': _json_error(body, err), 'scene': None}
+            return result
+        if not isinstance(data, dict):
+            result['error'] = {'message': 'O roteiro precisa ser um objeto JSON, começando com { e terminando com }.',
+                               'scene': None}
+            return result
+    else:
+        result['mode'] = 'texto'
+        try:
+            data, result['notes'] = text_script.script_from_text(text, options)
+        except ValueError as err:
+            result['error'] = {'message': str(err), 'scene': None}
+            return result
     try:
         engine.validate_script(data)  # o mesmo validador do motor e do editor
     except StudioError as err:
@@ -80,20 +95,32 @@ def analyze(text: str, project_dir: Path | None = None) -> dict:
     return result
 
 
+# Custo medido pelo Renato em 22/11/2026: 3 imagens 2K do Gemini = R$ 1,87 (≈ R$ 0,62 cada), igual em 16:9 e 9:16.
+# É uma estimativa para ele decidir antes de gerar; o preço do Google pode mudar.
+GEMINI_IMAGE_BRL = 0.62
+
+
 def _summary(data: dict) -> dict:
     scenes = []
     total = 0.0
+    to_generate = 0
     for n, s in enumerate(data['scenes'], 1):
         words = len(str(s.get('narration', '')).split())
         seconds = round(words / WORDS_PER_SECOND + 0.8, 1)
         total += seconds
+        layout = layouts.detect_layout(s)
+        if layout == 'image' and not s.get('image') and str(s.get('prompt') or '').strip():
+            to_generate += 1
         notes = s.get('revisar') if isinstance(s.get('revisar'), list) else []
         scenes.append({'index': n, 'id': str(s.get('id') or f'{n:02}'), 'title': s.get('title') or s.get('headline') or '',
-                       'layout': layouts.detect_layout(s), 'words': words, 'seconds': seconds, 'revisar': len(notes)})
+                       'layout': layout, 'words': words, 'seconds': seconds, 'revisar': len(notes)})
     res = str(data.get('resolution', '1920x1080')).lower()
+    provider = (data.get('images') or {}).get('provider', 'pollinations')
     return {'title': data.get('title') or '', 'channel': data.get('channel') or '', 'resolution': res,
             'format': FORMATS.get(res, res), 'subtitles': data.get('subtitles', 'karaoke'),
-            'voice': data.get('voice', 'pt-BR-AntonioNeural'), 'scenes': scenes, 'seconds': round(total, 1)}
+            'voice': data.get('voice', 'pt-BR-AntonioNeural'), 'scenes': scenes, 'seconds': round(total, 1),
+            'images': to_generate, 'provider': provider,
+            'cost_brl': round(to_generate * GEMINI_IMAGE_BRL, 2) if provider == 'gemini' and to_generate else None}
 
 
 def slugify(text: str, fallback: str = 'roteiro-importado') -> str:

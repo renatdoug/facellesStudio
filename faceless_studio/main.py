@@ -17,7 +17,7 @@ import sys
 import time
 from pathlib import Path
 
-from studio import __version__, audio, images_ai, layouts, subtitles, video, visuals, voice
+from studio import __version__, audio, images_ai, layouts, subtitles, toon, video, visuals, voice
 from studio.util import StudioError, check_ffmpeg, ensure_dir
 
 ROOT = Path(__file__).resolve().parent
@@ -73,6 +73,11 @@ def validate_script(data):
         raise StudioError('"subtitles" deve ser ' + ', '.join(subtitles.CAPTION_MODES) + '.')
     if 'resolution' in data and not re.fullmatch(r'\d{3,5}x\d{3,5}', str(data['resolution']).lower()):
         raise StudioError('"resolution" deve ter o formato LARGURAxALTURA, ex.: 1920x1080 ou 1080x1920.')
+    if 'toon' in data:
+        try:
+            toon.validate_toon(data['toon'])
+        except ValueError as err:
+            raise StudioError(str(err))
     scenes = data.get('scenes')
     if not isinstance(scenes, list) or not scenes:
         raise StudioError('O roteiro precisa ter uma lista "scenes" com pelo menos uma cena.')
@@ -92,6 +97,13 @@ def validate_script(data):
                 raise StudioError(f'Cena {n}: "{key}" deve ser um número de segundos (0 ou mais).')
         if s.get('video_end') not in (None, '') and s['video_end'] <= (s.get('video_start') or 0):
             raise StudioError(f'Cena {n}: "video_end" precisa ser maior que "video_start".')
+        if layouts.detect_layout(s) == 'toon':
+            try:
+                toon.validate_scene(s, data.get('toon'), n)
+            except ValueError as err:
+                raise StudioError(str(err))
+        if s.get('voice') is not None and not re.fullmatch(r'[a-z]{2}-[A-Z]{2}-[A-Za-z]+Neural', str(s['voice'])):
+            raise StudioError(f'Cena {n}: "voice" inválida (ex.: pt-BR-FranciscaNeural).')
         if s.get('video') is not None and not isinstance(s['video'], str):
             raise StudioError(f'Cena {n}: "video" deve ser o caminho de um arquivo de vídeo.')
     return data
@@ -164,6 +176,9 @@ def resolve_images(chosen, data, script_dir, args, w, h, fonts, out_dir):
                 raise StudioError(f'Imagem da cena {idx} não encontrada: {src}')
             resolved[idx] = src
         else:
+            if not str(scene.get('prompt') or '').strip():  # nunca gera (e cobra) imagem sem descrição
+                raise StudioError(f'Cena {idx}: o tipo é "imagem", mas o "prompt" está vazio. '
+                                  f'Descreva a imagem ou troque o tipo da cena.')
             try:
                 t0 = time.time()
                 src, new = bank.get(scene_id(idx, scene), scene['prompt'], regen=idx in regen)
@@ -261,6 +276,13 @@ def main():
               'mude o "prompt" ou aponte "image" para um arquivo seu.')
         return
     videos = resolve_videos(chosen, project_dir)
+    toon_stage, toon_seen = None, False
+    if any(layouts.detect_layout(s) == 'toon' for _, s in chosen):
+        cfg = data['toon']
+        try:
+            toon_stage = toon.Stage(w, h, cfg['characters'], cfg.get('background', 'room'), base_dir=project_dir)
+        except FileNotFoundError as err:
+            raise StudioError(str(err))
 
     clips, wavs, srt, chapters = [], [], [], []
     clock = 0.0
@@ -272,14 +294,20 @@ def main():
         print(f'[{pos + 1}/{len(chosen)}] Cena {idx} ({layout}): {label}', flush=True)
         next_scene = chosen[pos + 1][1] if pos + 1 < len(chosen) else None
         entry = entry_of(scene, data)
-        fade_in = pos == 0 or entry == 'fade'
+        # Primeira cena: com "punch" ou "flash" o vídeo começa NA HORA (sem 0,5 s de tela preta e silêncio),
+        # que é o que um gancho de Short precisa. Com "cut" ou "fade" continua a entrada suave do preto.
+        instant = pos == 0 and entry in ('punch', 'flash')
+        fade_in = (pos == 0 and not instant) or entry == 'fade'
         fade_out = next_scene is None or entry_of(next_scene, data) == 'fade'
 
         text = scene['narration'].strip()
+        # voz da cena: "voice" da cena > voz do personagem que fala > voz do roteiro
+        chars = (data.get('toon') or {}).get('characters') or {}
+        scene_voice = scene.get('voice') or (chars.get(scene.get('speaker')) or {}).get('voice') or voice_name
         if args.no_voice:
             src, events = voice.silent(text, cache)
         else:
-            src, events = voice.synthesize(text, voice_name, rate, cache, force=args.force_voice)
+            src, events = voice.synthesize(text, scene_voice, rate, cache, force=args.force_voice)
         speech = voice.audio_seconds(src)
         if not args.no_voice:  # corta o silêncio que o edge-tts deixa depois da última palavra
             speech = voice.speech_seconds(src, events, speech)
@@ -292,11 +320,13 @@ def main():
 
         img = work / f'visual_{idx:02}.png'
         ctx = layouts.Ctx(scene, idx, w, h, theme, channel, fonts, font_name, shifted,
-                          head, head + speech, total)
+                          head, head + speech, total, instant=instant)
         styles, lay_events = [], []
         if layout == 'video':
             styles, lay_events = layouts.image_overlay(ctx)  # título opcional, como nas imagens
             kind, amount = 'video', 0.0
+        elif layout == 'toon':
+            kind, amount = 'toon', 0.0  # sem layout de texto: os bonecos são desenhados quadro a quadro
         elif layout == 'image':
             photo = visuals.fit_16x9(images[idx], w, h)
             visuals.finish_photo(photo, darken_top=bool(scene.get('overlay_title'))).save(img)
@@ -313,7 +343,9 @@ def main():
         ass = work / f'legendas_{idx:02}.ass'
         subtitles.write_scene_ass(ass, shifted, scene.get('callouts'), total, w, h, font_name, accent,
                                   sub_mode, extra_styles=styles, extra_events=lay_events,
-                                  font_path=fonts['bold'])
+                                  font_path=fonts['bold'],
+                                  # cenas de texto têm o nome do canal no canto superior: a tarja desce para não cobri-lo
+                                  callout_top=0.10 if layout in ('image', 'video') else 0.14)
         srt.extend(subtitles.srt_blocks(shifted, clock))
         if scene.get('chapter'):
             chapters.append((clock, scene['chapter']))
@@ -328,6 +360,16 @@ def main():
             visuals.shade_overlay(w, h, darken_top=bool(scene.get('overlay_title'))).save(shade)
             video.render_video_scene(piece.name, shade.name, ass.name, clip.name, frames, w, h, fps,
                                      fade_in, fade_out, FADE, cwd=work, preset=args.preset, entry=entry)
+        elif layout == 'toon':
+            camera = scene.get('camera', 'auto')
+            if camera == 'auto':  # 1º plano aberto (mostra os dois); depois fecha em quem fala
+                camera = 'speaker' if toon_seen else 'wide'
+            toon_seen = True
+            quadros = toon_stage.scene_frames(scene['speaker'], shifted, frames, fps, scene.get('emotion', 'neutral'),
+                                              scene.get('reaction', 'neutral'), scene.get('gesture', 'none'), camera,
+                                              seed=idx)
+            video.render_frames(quadros, ass.name, clip.name, frames, w, h, fps, fade_in, fade_out, FADE, cwd=work,
+                                preset=args.preset, entry=entry)
         else:
             motion = video.pick_motion(scene.get('motion', 'auto'), idx, kind, portrait=h > w)
             video.render_scene(img.name, ass.name, clip.name, frames, w, h, fps, motion, fade_in, fade_out,

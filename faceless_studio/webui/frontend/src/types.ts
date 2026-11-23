@@ -43,14 +43,27 @@ export interface Issue {
   message: string
 }
 
+export interface TextOptions {
+  format: 'vertical' | 'horizontal' | 'square'
+  scene_size: '' | 'curta' | 'media' | 'longa'
+  images: 'todas' | 'nenhuma'
+  provider: string
+  voice: string
+  title: string
+}
+
 export interface ImportPreview {
   ok: boolean
+  mode: 'json' | 'texto'
   error: { message: string; scene: number | null } | null
   notes: string[]
   issues: Issue[]
   summary: {
     title: string; channel: string; resolution: string; format: string; subtitles: string; voice: string
     seconds: number
+    images: number
+    provider: string
+    cost_brl: number | null
     scenes: { index: number; id: string; title: string; layout: string; words: number; seconds: number; revisar: number }[]
   } | null
 }

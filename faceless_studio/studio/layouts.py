@@ -11,7 +11,7 @@ from . import ass_helpers, chart_anim, charts, visuals
 from .subtitles import ass_color, esc, find_word_time
 from .util import StudioError
 
-LAYOUTS = ('card', 'image', 'video', 'list', 'number', 'compare', 'quote', 'chart')
+LAYOUTS = ('card', 'image', 'video', 'toon', 'list', 'number', 'compare', 'quote', 'chart')
 TEXT_LAYOUTS = ('list', 'number', 'compare', 'quote', 'chart')
 
 
@@ -20,6 +20,8 @@ def detect_layout(scene):
         if scene['layout'] not in LAYOUTS:
             raise StudioError(f'Layout "{scene["layout"]}" inválido. Use: ' + ', '.join(LAYOUTS))
         return scene['layout']
+    if scene.get('speaker'):  # cena de bonecos animados (cartum)
+        return 'toon'
     if scene.get('video'):  # clipe do usuário (ou, no futuro, gerado por IA) como fundo
         return 'video'
     if scene.get('image') or scene.get('prompt'):
@@ -35,13 +37,15 @@ class Ctx:
     """Tudo que um layout precisa saber sobre a cena."""
 
     def __init__(self, scene, idx, w, h, theme, channel, fonts, font_name, words, speech_start,
-                 speech_end, scene_end):
+                 speech_end, scene_end, instant=False):
         self.scene, self.idx, self.w, self.h = scene, idx, w, h
         self.theme, self.channel, self.fonts, self.font_name = theme, channel, fonts, font_name
         self.pal = visuals.palette(theme)
         self.words, self.speech_start, self.speech_end, self.scene_end = words, speech_start, speech_end, scene_end
         self.pad = int(w * 0.075)
         self.portrait = h > w
+        # cena que abre o vídeo sem fade: título e número já aparecem no 1º quadro
+        self.instant = instant
         # No vertical, a legenda sobe (acima da interface do Shorts), então o conteúdo termina antes.
         self.bottom = 0.68 if self.portrait else 0.80
         self.src_y = 0.705 if self.portrait else 0.845
@@ -72,16 +76,17 @@ def _headline_events(c, y_frac=0.19, size_frac=0.072, max_lines=2):
         return [], [], y_frac
     size = round(c.h * size_frac)
     # com tarjas (canto superior direito), o título deixa espaço livre à direita
-    max_w = c.w - 2 * c.pad - (int(c.w * 0.24) if c.scene.get('callouts') else 0)
+    max_w = c.w - 2 * c.pad - (int(c.w * 0.30) if c.scene.get('callouts') else 0)
     lines = visuals.wrap_lines(head, c.fonts['bold'], size, max_w)
     while len(lines) > max_lines and size > 24:
         size -= 2
         lines = visuals.wrap_lines(head, c.fonts['bold'], size, max_w)
     y = int(c.h * y_frac)
     text = '\\N'.join(esc(x) for x in lines[:max_lines])
-    ev = [_ev(0, c.scene_end, 'LHead', f'{{\\pos({c.pad},{y})\\fad(300,0)}}{text}')]
+    fad = '' if c.instant else '\\fad(300,0)'
+    ev = [_ev(0, c.scene_end, 'LHead', f'{{\\pos({c.pad},{y}){fad}}}{text}')]
     bar_y = y + int(size * 1.22 * min(len(lines), max_lines)) + int(c.h * 0.012)
-    bar = (f'{{\\pos({c.pad},{bar_y})\\p1\\fad(300,0)\\c{ass_color(c.pal["accent"])}}}'
+    bar = (f'{{\\pos({c.pad},{bar_y})\\p1{fad}\\c{ass_color(c.pal["accent"])}}}'
            f'm 0 0 l {int(c.w * 0.09)} 0 {int(c.w * 0.09)} {max(4, c.h // 135)} 0 {max(4, c.h // 135)}{{\\p0}}')
     ev.append(_ev(0, c.scene_end, 'LShape', bar))
     styles = [_style('LHead', c.font_name, size, (255, 255, 255), bold=True, outline=0, shadow=0),
@@ -167,7 +172,7 @@ def layout_number(c, bg_path):
         t0 = a + dur * s / steps
         p = 1 - (1 - (s + 1) / steps) ** 3
         txt = f'{pre}{_fmt_number(value * p, dec)}{suf}'
-        fade = '\\fad(120,0)' if s == 0 else ''
+        fade = '\\fad(120,0)' if s == 0 and not c.instant else ''
         events.append(_ev(t0, t0 + dur / steps, 'LBig', f'{{\\pos({c.pad},{y_big}){fade}}}{esc(txt)}',
                           min_dur=0.03))
     events.append(_ev(a + dur, c.scene_end, 'LBig', f'{{\\pos({c.pad},{y_big})}}{esc(final_txt)}'))

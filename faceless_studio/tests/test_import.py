@@ -69,7 +69,7 @@ def test_json_invalido_diz_linha_coluna_e_a_causa_provavel():
     r = importer.analyze('{"scenes": [] // comentário\n}')
     assert not r['ok'] and 'comentários' in r['error']['message']
     assert 'Cole' in importer.analyze('   ')['error']['message']
-    assert 'objeto' in importer.analyze('[1, 2]')['error']['message']
+    assert importer.analyze('[1, 2]')['mode'] == 'texto'  # não começa com { : é lido como roteiro em texto simples
     assert not importer.analyze('x' * (importer.MAX_CHARS + 1))['ok']
 
 
@@ -253,9 +253,10 @@ def test_exemplo_do_guia_e_valido_e_sem_erros():
     example = re.search(r'```json\n(\{.*?\n\})\n```', GUIDE, re.DOTALL).group(1)
     r = importer.analyze(example)
     assert r['ok'], r['error']
-    assert not [i for i in r['issues'] if i['level'] in ('erro', 'aviso')]  # só "verificar", como pede o guia
-    assert any(i['level'] == 'verificar' for i in r['issues'])
-    assert 'A VERIFICAR' in example
+    assert not [i for i in r['issues'] if i['level'] in ('erro', 'aviso')]
+    # dado com fonte fornecida: nenhum aviso de fonte; só a nota de conferência (revisar) da cena 1
+    assert [(i['level'], i['scene'], i['field']) for i in r['issues']] == [('verificar', 1, 'revisar')]
+    assert 'A VERIFICAR' not in example and 'ilustrativ' not in example.lower()  # nada disso aparece no vídeo
 
 
 def test_guia_cita_todos_os_campos_e_valores_que_o_motor_aceita():
@@ -269,6 +270,15 @@ def test_guia_cita_todos_os_campos_e_valores_que_o_motor_aceita():
 
 
 def test_guia_tem_as_regras_de_honestidade_e_a_separacao_dos_tres_papeis():
-    for trecho in ('Nunca invente', 'A VERIFICAR', '`revisar`', '`narration`', 'um único objeto JSON',
-                   'Pedido', 'não use pacientes', '2,5 palavras'):
+    for trecho in ('somente os dados e as fontes que o usuário forneceu', 'não crie número', 'Nunca escreva "A VERIFICAR"',
+                   '`revisar`', '`narration`', 'um único objeto JSON', 'Pedido', 'não use pacientes', '2,5 palavras'):
         assert trecho.lower() in GUIDE.lower(), trecho
+
+
+@pytest.mark.parametrize('name', ['exemplo_shorts.json', 'exemplo_shorts_imagens.json', 'exemplo_layouts.json',
+                                  'roteiro_uti.json'])
+def test_roteiros_de_exemplo_do_repositorio_sao_validos(name):
+    """Os exemplos que acompanham o programa passam no validador e não têm erro de conteúdo."""
+    r = importer.analyze((ROOT / name).read_text(encoding='utf-8'))
+    assert r['ok'], (name, r['error'])
+    assert not [i for i in r['issues'] if i['level'] in ('erro', 'aviso')], (name, r['issues'])

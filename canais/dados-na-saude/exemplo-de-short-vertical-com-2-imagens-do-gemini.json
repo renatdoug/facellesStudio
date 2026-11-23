@@ -1,0 +1,121 @@
+{
+  "title": "Exemplo de Short vertical com 2 imagens do Gemini",
+  "channel": "Dados na Saúde",
+  "theme": "health",
+  "resolution": "1080x1920",
+  "fps": 30,
+  "voice": "pt-BR-FranciscaNeural",
+  "subtitles": "pop",
+  "default_transition": "punch",
+  "images": {
+    "provider": "gemini",
+    "style": "editorial digital illustration, clean flat shapes, soft cinematic lighting, dark navy and teal palette, modern hospital, no identifiable faces, vertical composition",
+    "seed": 1234
+  },
+  "revisar": [
+    "Os números (42%, 28%, 18%, 12% e a série de adesão) são de exemplo: substitua por dados reais e cite a fonte antes de publicar"
+  ],
+  "scenes": [
+    {
+      "id": "gancho",
+      "title": "Gancho",
+      "headline": "VOCÊ SABIA?",
+      "overlay_title": true,
+      "narration": "Quase metade das admissões na UTI é respiratória.",
+      "callouts": [
+        {
+          "text": "42% respiratórias",
+          "at": 0.2
+        }
+      ],
+      "revisar": [
+        "42% é um valor de exemplo"
+      ],
+      "prompt": "tall vertical full-bleed illustration that fills the entire frame edge to edge, no empty margins or flat bands: an intensive care room at night seen from a high angle looking down at a hospital bed with white sheets in the lower center, a bedside monitor on the left showing only an abstract glowing waveform with no digits and no text, tall walls, ceiling lights and equipment filling the top of the frame, calm and urgent atmosphere, bright key light on the bed"
+    },
+    {
+      "id": "causas",
+      "title": "Causas",
+      "headline": "CAUSAS DE ADMISSÃO",
+      "transition": "flash",
+      "narration": "Primeiro, as causas respiratórias. Depois as cardiovasculares, as neurológicas e as demais.",
+      "chart": {
+        "type": "bar",
+        "labels": [
+          "Respiratória",
+          "Cardiovascular",
+          "Neurológica",
+          "Outras"
+        ],
+        "values": [
+          42,
+          28,
+          18,
+          12
+        ],
+        "unit": "%",
+        "highlight": 0,
+        "on_words": [
+          "respiratórias",
+          "cardiovasculares",
+          "neurológicas",
+          "demais"
+        ],
+        "source": "A VERIFICAR"
+      }
+    },
+    {
+      "id": "respiracao",
+      "title": "Respiração",
+      "headline": "TUDO COMEÇA PELA RESPIRAÇÃO",
+      "overlay_title": true,
+      "narration": "Por isso a equipe olha primeiro as vias aéreas e a respiração.",
+      "prompt": "close-up of a ventilator and oxygen tubing beside an ICU bed, soft teal light, clean modern equipment, no people, screens show only abstract waveforms with no digits and no text",
+      "motion": "pan_up"
+    },
+    {
+      "id": "evolucao",
+      "title": "Evolução",
+      "headline": "ADESÃO AO PROTOCOLO",
+      "narration": "E a adesão ao protocolo subiu mês a mês depois do treinamento da equipe.",
+      "chart": {
+        "type": "line",
+        "labels": [
+          "Jan",
+          "Fev",
+          "Mar",
+          "Abr",
+          "Mai",
+          "Jun"
+        ],
+        "series": [
+          {
+            "name": "Adesão",
+            "values": [
+              52,
+              58,
+              66,
+              71,
+              79,
+              84
+            ]
+          }
+        ],
+        "unit": "%",
+        "source": "A VERIFICAR"
+      }
+    },
+    {
+      "id": "fecho",
+      "title": "Fecho",
+      "headline": "SEGUE O CANAL",
+      "narration": "Siga o canal para ver mais dados que ajudam a cuidar melhor.",
+      "callouts": [
+        {
+          "text": "Siga o canal",
+          "at": 0.3
+        }
+      ]
+    }
+  ]
+}

@@ -140,7 +140,7 @@ def _karaoke_text(chunk, caps=False):
     return ' '.join(parts)
 
 
-CAPTION_MODES = ('karaoke', 'simple', 'pop', 'box', 'off')
+CAPTION_MODES = ('karaoke', 'simple', 'pop', 'box', 'topbox', 'off')
 PIL_PER_ASS = 1 / 1.16  # igual a 1/ass_helpers.ASS_SCALE: um tamanho ASS rende texto 16% mais estreito que o do Pillow
 # "pop": blocos curtos e grandes que saltam na tela, palavra falada em destaque (estilo Shorts/TikTok);
 # "box": o mesmo, sobre uma caixa colorida.
@@ -159,6 +159,12 @@ def caption_metrics(w, h, mode):
     """Tamanho da fonte, margem vertical e limites de bloco da legenda, conforme formato e estilo."""
     portrait = h > w
     big = mode in ('pop', 'box')
+    if mode == 'topbox':  # frase inteira em caixa preta no topo, fora das áreas cobertas pela interface do Shorts
+        fs = round(w * 0.056) if portrait else round(h * 0.05)
+        margin = int(w * 0.075)
+        pad = round(fs * 0.25)
+        return {'fs': fs, 'margin': margin, 'margin_v': round(h * (0.115 if portrait else 0.06)), 'pad': pad,
+                'avail': w - 2 * margin - 2 * pad, 'max_words': 999, 'max_chars': 999}
     if portrait:
         fs = round(w * (0.088 if big else 0.072))
         margin_v = round(h * 0.22)  # acima da faixa inferior ocupada pela interface do Shorts
@@ -178,9 +184,10 @@ def caption_metrics(w, h, mode):
 
 
 def write_scene_ass(path, words, callouts, scene_end, w, h, font_name, accent, mode='karaoke',
-                    extra_styles=(), extra_events=(), font_path=None):
+                    extra_styles=(), extra_events=(), font_path=None, callout_top=0.10):
     """Legenda da cena (modo 'karaoke', 'simple', 'pop', 'box' ou 'off'), tarjas de destaque e
-    os textos animados do layout da cena (extra_styles/extra_events)."""
+    os textos animados do layout da cena (extra_styles/extra_events). `callout_top` é a altura (fração da tela)
+    em que as tarjas ficam: 0,10 nas cenas de imagem/vídeo; mais baixo nas que têm o nome do canal no canto."""
     if mode not in CAPTION_MODES:
         raise ValueError(f'Modo de legenda inválido: {mode}')
     m = caption_metrics(w, h, mode)
@@ -198,7 +205,10 @@ def write_scene_ass(path, words, callouts, scene_end, w, h, font_name, accent, m
     co_fs = round(h * 0.046)
     co_box = ass_color(accent)
     co_text = ass_color((8, 20, 34))
-    if mode == 'box':  # BorderStyle 3: caixa opaca na cor do contorno
+    if mode == 'topbox':  # alinhamento 8 (topo), caixa preta opaca, texto branco
+        sub_style = (f'Style: Sub,{font_name},{fs},&H00FFFFFF,&H00FFFFFF,&H00000000,{shadow},-1,0,0,0,100,100,0,0,3,'
+                     f'{m["pad"]},0,8,{margin},{margin},{m["margin_v"]},1')
+    elif mode == 'box':  # BorderStyle 3: caixa opaca na cor do contorno
         sub_style = (f'Style: Sub,{font_name},{fs},{primary},{secondary},{co_box},{shadow},-1,0,0,0,100,100,0,0,3,'
                      f'{m["pad"]},0,2,{margin},{margin},{m["margin_v"]},1')
     else:
@@ -215,13 +225,19 @@ ScaledBorderAndShadow: yes
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 {sub_style}
-Style: Callout,{font_name},{co_fs},{co_text},{co_text},{co_box},{shadow},-1,0,0,0,100,100,1,0,3,{round(h * 0.014)},0,9,{margin},{margin},{round(h * 0.10)},1
+Style: Callout,{font_name},{co_fs},{co_text},{co_text},{co_box},{shadow},-1,0,0,0,100,100,1,0,3,{round(h * 0.014)},0,9,{margin},{margin},{round(h * callout_top)},1
 {''.join(st + chr(10) for st in extra_styles)}
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     events = list(extra_events)
-    if mode != 'off' and words:
+    if mode == 'topbox' and words:
+        from .visuals import wrap_lines
+        text = ' '.join(x.text for x in words)
+        lines = wrap_lines(text, font_path, round(fs * PIL_PER_ASS), m['avail']) if font_path is not None else [text]
+        body = '\\N'.join(esc(ln) for ln in lines)
+        events.append(f'Dialogue: 0,{ass_time(max(0.0, words[0].start - 0.05))},{ass_time(scene_end)},Sub,,0,0,0,,{body}')
+    elif mode != 'off' and words:
         fits, width = None, None
         if font_path is not None:  # mede a largura de verdade, com a fonte do vídeo
             from .visuals import text_width

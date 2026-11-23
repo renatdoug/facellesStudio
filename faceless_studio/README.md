@@ -102,6 +102,43 @@ python -m unittest -v
 
 Os testes de imagem usam um servidor local que imita as APIs: não precisam de internet nem gastam créditos.
 
+## Bonecos animados — cartum (v0.10, MVP)
+
+Vídeos de dois bonecos **conversando**, sem IA e sem custo por vídeo: a boca acompanha a fala, eles piscam, mudam de expressão e gesticulam, e a câmera fecha em quem fala. Em **⬇ Importar roteiro**, cole um diálogo:
+
+```
+Título: O ninja que corre sobre a água
+
+Leo: Eu vi num anime um ninja correndo sobre a água!
+Ana (pensativa): Será que isso funciona de verdade?
+Leo (convencido) [aponta]: Claro! É só correr rápido o bastante!
+Ana [close]: Rápido quanto? Eu fiz a conta.
+```
+
+- Cada linha `Nome: fala` é uma cena. `(emoção)` depois do nome: neutra, feliz, brava, triste, surpresa, pensativa, convencida. `[gesto]` ou `[câmera]` depois: `[aponta]`, `[mãos na cintura]`, `[abre os braços]`, `[dá de ombros]`, `[close]`, `[plano aberto]`. Sem marcação, a emoção vem da pontuação (`?` pensando, `!` feliz, `?!` surpresa).
+- São exatamente **2 personagens**. A voz vem do nome (terminado em "a" = Francisca, senão Antonio); troque em `toon.characters` do roteiro. Cenário: `room` (sala em preto e branco), `plain` ou uma imagem sua em `toon.background`.
+- No editor, cada fala é uma cena "Cartum" (quem fala, emoção, reação, gesto, câmera). **▶ Prévia desta cena** mostra o movimento. Renderizar leva ~5 s por segundo de vídeo.
+- Limites do MVP: bonecos em pé, 2 personagens, cenário simples. Os bonecos são desenhados pelo programa; não são os do canal de referência.
+
+## Colar o roteiro em texto (v0.9)
+
+Não precisa de JSON nem de IA: na barra lateral, **⬇ Importar roteiro**, cole o seu texto e escolha as opções.
+
+```
+Título: Por que a UTI se preocupa com a respiração
+
+Quase metade das admissões na UTI é respiratória, segundo o estudo de 2023.
+
+Por isso a equipe olha primeiro as vias aéreas e a respiração.
+
+Fonte: Autor et al., Revista Brasileira de Terapia Intensiva, 2023
+```
+
+- **Um parágrafo = uma cena** (linha em branco entre eles). Texto corrido, ou um parágrafo longo, é dividido por frases (sem cortar no meio) e agrupado no tamanho de cena que você escolher.
+- `Título:` na primeira linha define o título. Linhas que começam com `Fonte:`, `Fontes:` ou `Referências:` não são narradas: ficam no campo `fontes` do roteiro (para a descrição do vídeo).
+- Você escolhe formato (vertical/horizontal/quadrado), imagens (uma por cena ou só texto), gerador de imagens e voz. A prévia mostra o **custo estimado das imagens** (≈ R$ 0,62 cada no Gemini); nada é gerado ao importar.
+- O programa **não entende** o texto: só divide por pontuação. Depois de importar, ajuste no editor: troque cenas por **gráfico**, **número**, **lista** ou **vídeo**, melhore os prompts das imagens e confira os dados e as fontes antes de publicar.
+
 ## Roteiros escritos por IA (v0.8)
 
 Você pode pedir o roteiro a qualquer IA de chat (Claude, ChatGPT, Gemini) e importá-lo, sem API:
@@ -123,6 +160,7 @@ O guia obriga a IA a **não inventar dados**: números de exemplo vão com `"sou
 - **Entrada da cena** (`transition`, por cena; `default_transition` para todas): `cut`, `fade`, `punch` (zoom rápido), `flash` (clarão branco).
 - **Movimento** (`motion`): `zoom_in`, `zoom_out`, `pan_left`, `pan_right`, `pan_up`, `pan_down`, `shake`, `static`.
 - **Gráficos animados** (padrão): barras crescem e a linha se desenha. Em `chart`: `"on_words": ["respiratórias", "cardiovasculares", ...]` faz cada barra entrar quando a palavra é dita; `"orient": "horizontal"|"vertical"` força a orientação (no vertical, rótulos longos já viram barras horizontais sozinhos); `"zero": true` força o zero no eixo da linha; `"animate": false` usa o gráfico estático.
+- **Gancho de Short**: a 1ª cena com `punch` ou `flash` começa sem tela preta e com o título já visível; use `"at": 0` em `number`/`chart` para o elemento principal já estar na tela no primeiro quadro.
 - **Pausa entre as cenas** (`pause`, em segundos depois da fala; padrão `0.2`; `0.1` deixa o Short mais rápido). `fade` entre cenas acrescenta uma pausa maior: para ritmo rápido use `punch`, `flash` ou `cut`.
 - **Prévias** (`--draft`, `--preview`, "Prévia desta cena") saem em 720p no mesmo formato do vídeo.
 - Ainda não há vídeo gerado por IA nem personagens animados; o movimento vem de imagens, vídeos seus e das animações acima.

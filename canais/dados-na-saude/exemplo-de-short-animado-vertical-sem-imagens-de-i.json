@@ -1,0 +1,95 @@
+{
+  "title": "Exemplo de Short animado (vertical, sem imagens de IA)",
+  "channel": "Dados na Saúde",
+  "theme": "health",
+  "resolution": "1080x1920",
+  "fps": 30,
+  "voice": "pt-BR-FranciscaNeural",
+  "subtitles": "pop",
+  "default_transition": "punch",
+  "images": {
+    "provider": "none"
+  },
+  "scenes": [
+    {
+      "title": "Gancho",
+      "headline": "VOCÊ SABIA?",
+      "narration": "Quase metade das admissões na UTI começa por um problema respiratório.",
+      "number": {
+        "value": 42,
+        "suffix": "%",
+        "label": "das admissões são respiratórias",
+        "source": "Dados ilustrativos — substitua pelos seus",
+        "on_word": "metade"
+      }
+    },
+    {
+      "title": "Causas",
+      "headline": "CAUSAS DE ADMISSÃO",
+      "transition": "flash",
+      "narration": "Primeiro, as causas respiratórias. Depois as cardiovasculares, as neurológicas e as demais.",
+      "chart": {
+        "type": "bar",
+        "labels": [
+          "Respiratória",
+          "Cardiovascular",
+          "Neurológica",
+          "Outras"
+        ],
+        "values": [
+          42,
+          28,
+          18,
+          12
+        ],
+        "unit": "%",
+        "highlight": 0,
+        "on_words": [
+          "respiratórias",
+          "cardiovasculares",
+          "neurológicas",
+          "demais"
+        ],
+        "source": "Dados ilustrativos"
+      }
+    },
+    {
+      "title": "Evolução",
+      "headline": "ADESÃO AO PROTOCOLO",
+      "narration": "E a adesão ao protocolo subiu mês a mês depois do treinamento da equipe.",
+      "motion": "pan_up",
+      "chart": {
+        "type": "line",
+        "labels": [
+          "Jan",
+          "Fev",
+          "Mar",
+          "Abr",
+          "Mai",
+          "Jun"
+        ],
+        "series": [
+          {
+            "name": "Adesão",
+            "values": [
+              52,
+              58,
+              66,
+              71,
+              79,
+              84
+            ]
+          }
+        ],
+        "unit": "%",
+        "source": "Dados ilustrativos"
+      }
+    },
+    {
+      "title": "Fecho",
+      "headline": "SEGUE O CANAL",
+      "transition": "fade",
+      "narration": "Siga o canal para ver mais dados que ajudam a cuidar melhor."
+    }
+  ]
+}

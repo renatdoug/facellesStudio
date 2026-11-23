@@ -1,4 +1,4 @@
-import type { Channel, ImportPreview, Job, LibraryItem, Meta, Script, ScriptState } from './types'
+import type { Channel, ImportPreview, Job, LibraryItem, Meta, Script, ScriptState, TextOptions } from './types'
 
 async function call<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -37,10 +37,10 @@ export const api = {
     regen?: string; strict: boolean; no_voice: boolean; scene?: number | null
   }) => call<{ id: number }>('/api/jobs', post(req)),
   guide: () => call<{ text: string }>('/api/guide'),
-  importPreview: (text: string, channel: string | null) =>
-    call<ImportPreview>('/api/import/preview', post({ text, channel })),
-  importScript: (text: string, channel: string, name: string | null) =>
-    call<{ channel: string; script: string }>('/api/import', post({ text, channel, name })),
+  importPreview: (text: string, channel: string | null, options: Partial<TextOptions> | null) =>
+    call<ImportPreview>('/api/import/preview', post({ text, channel, options })),
+  importScript: (text: string, channel: string, name: string | null, options: Partial<TextOptions> | null) =>
+    call<{ channel: string; script: string }>('/api/import', post({ text, channel, name, options })),
   library: (channel: string) => call<LibraryItem[]>(`/api/channels/${enc(channel)}/library`),
   uploadVideo: async (channel: string, file: File): Promise<LibraryItem> => {
     // corpo bruto (sem multipart): o servidor grava em streaming, importante para vídeos grandes

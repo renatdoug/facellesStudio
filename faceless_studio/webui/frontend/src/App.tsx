@@ -319,6 +319,7 @@ export default function App() {
             <aside className="props">
               <Inspector scene={scene} layout={infos[selected]?.layout ?? 'card'} channel={channel}
                          video={infos[selected]?.video ?? null}
+                         toonCharacters={Object.entries((draft.toon?.characters ?? {}) as Record<string, { name?: string }>).map(([id, c]) => ({ id, name: c.name || id }))}
                          narrationSeconds={String(scene.narration ?? '').split(/\s+/).filter(Boolean).length / 2.5 + 0.8}
                          onChange={(s) => edit((d) => { d.scenes[selected] = s })}
                          onPickVideo={(item) => setPicked((m) => ({ ...m, [`assets/media/${item.name}`]: item }))} />

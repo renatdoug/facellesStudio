@@ -5,7 +5,7 @@
 Programa em Python que transforma um roteiro em JSON em um vídeo MP4 narrado: voz por IA (edge-tts),
 legendas palavra a palavra em estilo karaokê, cenas com layout adaptado automaticamente ao conteúdo
 (lista, número, gráfico, comparação, citação, imagem), e imagens geradas por IA. Serve para produzir
-vídeos "faceless" para YouTube sem o criador aparecer na câmera. Está na v0.8.1 (versão única em
+vídeos "faceless" para YouTube sem o criador aparecer na câmera. Está na v0.10.0 (versão única em
 `studio/__init__.py`), desenvolvido de forma incremental (v0.1 → v0.3.2 no chat; v0.4 → v0.6 no Claude Code:
 interface Tkinter, interface web e cenas com vídeo de fundo).
 
@@ -59,6 +59,23 @@ do programa.
   `--image-provider`, `--regen`, `--strict-images`, `--no-voice`), lendo a saída em tempo real. Procura canais
   em `../canais`. Cancelar usa `taskkill /T` para matar também o ffmpeg. Aberta por
   `abrir_studio_simples.bat` (usa `.venv\Scripts\pythonw.exe`). Foi aberta e validada na máquina do Renato.
+- Bonecos animados / cartum (v0.10, MVP): `studio/toon.py` = personagens DESENHADOS POR CÓDIGO (Pillow, camadas RGBA
+  por personagem, supersampling 2x) + `Actor` (boca por sílaba sincronizada com `Word.start/end`, piscar determinístico
+  com trecho fechado, olhar, gestos, 7 emoções) + `Stage` (cenário `room`/`plain`/imagem + câmera wide/speaker por
+  recorte `resize(box=)`). `video.render_frames` manda os quadros RGB para o stdin do FFmpeg (legenda `topbox` e
+  fades entram no mesmo comando). Cena de cartum = `speaker` (layout `toon`); bloco `toon.characters` (máx. 2).
+  `main.py`: voz = `voice` da cena > voz do personagem > global. `text_script.dialogue_from_text` converte
+  `Nome (emoção) [gesto]: fala` em roteiro (exatamente 2 nomes, >=3 falas, >=70% das linhas); a voz vem do NOME
+  (termina em "a" = Francisca), nunca igual nos dois; a opção `voice` do painel NÃO vale no diálogo
+  (`dialogue_voices` vale). ~0,04 s/quadro => ~5 s por segundo de vídeo. Pedido do Renato: GeekLab primeiro, 2
+  personagens, SEM copiar os personagens do canal de referência (@meme_animado), sem API de vídeo. Ainda não feito:
+  sentar/andar, 3+ personagens, narrador, trocar roupa/cenário pela interface, acabamento do desenho (cabelo).
+- Roteiro em texto (v0.9): `studio/text_script.py` converte texto simples em roteiro (parágrafo = cena; frases
+  agrupadas; abreviações protegidas; `Título:`; `Fonte:` -> campo `fontes`, não narrado), SEM IA. `webui/importer.analyze`
+  detecta JSON (começa com `{` ou bloco ```json) x texto e aceita `options` (format, scene_size, images, provider,
+  voice, title). Estimativa de custo = `importer.GEMINI_IMAGE_BRL` (R$ 0,62, medido). Pedido do Renato (22/11/2026):
+  ele usará DADOS REAIS de artigos publicados, então o vídeo NUNCA mostra "A VERIFICAR"/"ilustrativo"; o guia de IA
+  manda usar só os dados fornecidos (fonte em `source`) e, sem dado, não criar número/gráfico (lacuna em `revisar`).
 - Roteiros de IA (v0.8): `guia_roteiro_ia.md` (texto para colar no Claude/ChatGPT/Gemini, servido por
   `GET /api/guide`), `webui/importer.py` (extrai o JSON do texto colado, valida com `main.validate_script`,
   grava como arquivo NOVO com `open(..., 'x')`: nunca sobrescreve) e `studio/script_check.py` (avisos por
@@ -175,5 +192,19 @@ o mínimo necessário, com teste de regressão adicionado, antes de reempacotar 
 - Achado do 1º vídeo real com voz (22/11/2026): o edge-tts deixa ~0,87 s de silêncio DEPOIS da última palavra
   (e ~0,17 s antes da primeira). Isso criava 1,4 s de pausa entre cenas (2,1 s com `fade`). Corrigido na v0.8.1
   (`voice.speech_seconds` + campo `pause`). Para ritmo de Short prefira `punch`/`flash`/`cut` em vez de `fade`.
+- 1º Short vertical real (22/11/2026): formato, `pop`, barras/linha animadas e contagem funcionaram. Achados: (a) `fade`
+  na última cena = ~1,4 s de silêncio; (b) gancho fraco (tela vazia ~1,5 s) -> v0.8.2: 1ª cena com `punch`/`flash`
+  começa na hora e `"at": 0` põe o elemento no 1º quadro; (c) AINDA falta: fecho é cartão parado/vazio, fonte
+  ("Fonte: ...") pequena e cinza, nenhuma ilustração (plano: testar 1–2 imagens Gemini em 9:16, ~R$ 0,62 cada).
+- Short vertical com imagens Gemini (22/11/2026): 2 imagens 1536x2752 (9:16, 2K) em ~29 s. A de equipamento
+  ficou excelente (traçados abstratos, sem números); a do gancho veio como faixa horizontal no meio de fundo liso:
+  em vertical o prompt DEVE pedir "full-bleed ... fills the entire frame edge to edge, no empty margins" (agora no
+  guia). O saldo do AI Studio atrasa no painel, mas fechou: 30,00 -> 29,38 (1ª imagem) -> 27,51 depois de mais 3 imagens
+  (2 do Short + 1 regerada) = **R$ 0,62 por imagem 2K, igual em 16:9 e em 9:16** (medido pelo Renato em 22/11/2026).
+- Short vertical gerado de TEXTO (22/11/2026, v0.9): 4 imagens por prompts derivados do texto = R$ 2,49 (R$ 0,62 cada, a
+  estimativa da prévia acertou). Imagens coerentes com a fala e 'full-bleed'. Achados: (a) legenda verde-água sobre imagem
+  verde-água: o escurecimento da base era do horizontal -> v0.9.1 faz o degradê vertical cobrir a legenda (~75% da altura);
+  (b) cena de 14 palavras = 6,4 s com 1 imagem parada (longo para Short). Ideias ainda NÃO feitas, aguardando o Renato:
+  reaproveitar a imagem em 2 enquadramentos (`image_from`, sem custo de imagem) e opção de legenda maior (`caption_scale`).
 - Decisão em aberto, não antecipar: se vale a pena construir o comparador de fornecedores (acima) ou
   seguir para outras melhorias — aguardar o Renato decidir depois de ver os resultados reais.

@@ -158,10 +158,18 @@ def fit_16x9(source, w, h):
 
 
 def _shade_mask(w, h, darken_top=False):
+    """Escurecimento da base (e opcionalmente do topo) para legenda e título ficarem legíveis.
+    No vertical a legenda fica em ~75% da altura (acima da faixa do Shorts), então o degradê começa mais
+    cedo e já está forte nessa altura; no horizontal ela fica na base e o degradê é o de sempre."""
+    portrait = h > w
     shade = Image.new('L', (1, 256))
     for y in range(256):
         t = y / 255
-        bottom = max(0.0, (t - 0.62) / 0.38) ** 1.4 * 0.70
+        if portrait:
+            x = min(1.0, max(0.0, (t - 0.50) / 0.28))
+            bottom = 0.70 * x * x * (3 - 2 * x)
+        else:
+            bottom = max(0.0, (t - 0.62) / 0.38) ** 1.4 * 0.70
         top = max(0.0, (0.30 - t) / 0.30) ** 1.4 * 0.55 if darken_top else 0.0
         shade.putpixel((0, y), int(255 * max(bottom, top)))
     return shade.resize((w, h), Image.Resampling.BICUBIC)

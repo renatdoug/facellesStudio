@@ -20,7 +20,8 @@
       "narration": "Quando um paciente chega à unidade de terapia intensiva, os primeiros minutos exigem organização e decisões rápidas.",
       "prompt": "modern intensive care unit room at night, empty hospital bed beside a glowing multiparameter monitor, calm and organized atmosphere",
       "headline": "ADMISSÃO NA UTI",
-      "overlay_title": true
+      "overlay_title": true,
+      "transition": "punch"
     },
     {
       "id": "lista",

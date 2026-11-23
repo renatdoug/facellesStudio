@@ -1,14 +1,15 @@
 import type { Scene } from './types'
 
 export const CONTENT_KEYS = ['image', 'prompt', 'video', 'video_start', 'video_end', 'items', 'number',
-  'chart', 'compare', 'quote'] as const
+  'chart', 'compare', 'quote', 'speaker', 'emotion', 'reaction', 'gesture', 'camera'] as const
 
-export interface Kind { id: string; label: string; hint: string; soon?: boolean }
+export interface Kind { id: string; label: string; hint: string; soon?: boolean; onlyWhenCurrent?: boolean }
 
 export const KINDS: Kind[] = [
   { id: 'image', label: 'Imagem', hint: 'Ilustração gerada por IA (ou arquivo seu)' },
   { id: 'video', label: 'Vídeo', hint: 'Clipe seu como fundo, com a narração e as legendas por cima' },
   { id: 'ai_video', label: 'Vídeo IA', hint: 'Em breve: transformar a imagem gerada em um clipe animado', soon: true },
+  { id: 'toon', label: 'Cartum', hint: 'Bonecos animados em diálogo (criado pela importação de falas Nome: texto)', onlyWhenCurrent: true },
   { id: 'list', label: 'Lista', hint: 'Itens que surgem conforme a narração' },
   { id: 'number', label: 'Número', hint: 'Valor em destaque com contagem' },
   { id: 'chart', label: 'Gráfico', hint: 'Barras ou linha' },
@@ -35,6 +36,7 @@ const SKELETON: Record<string, Scene> = {
   },
   quote: { quote: { text: 'Escreva a citação aqui.', author: '' } },
   card: {},
+  toon: {},
 }
 
 /** Troca o tipo da cena: remove o conteúdo dos outros tipos e cria um esqueleto do novo. */
@@ -73,6 +75,7 @@ export function duplicateScene(scene: Scene, existing: Scene[]): Scene {
 /** Espelha layouts.detect_layout() do Python, para o rascunho ainda não salvo. */
 export function detectLayout(scene: Scene): string {
   if (scene.layout) return scene.layout
+  if (scene.speaker) return 'toon'
   if (scene.video) return 'video'
   if (scene.image || scene.prompt) return 'image'
   for (const [key, name] of [['chart', 'chart'], ['number', 'number'], ['items', 'list'],

@@ -239,3 +239,10 @@ textarea.big { min-height: 180px; }
 .verify { background: rgba(251, 191, 36, .10); border: 1px solid rgba(251, 191, 36, .35); border-radius: 8px; padding: 10px 12px; display: grid; gap: 6px; color: var(--warn); font-size: 13px; }
 .verify ul { margin: 0; padding-left: 18px; color: var(--text); line-height: 1.45; }
 .verify button { justify-self: start; }
+
+/* ---- importar roteiro em texto simples ---- */
+.text-opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 12px; background: rgba(34, 211, 238, .05); border: 1px solid var(--line); border-radius: 10px; }
+.guide-box { display: grid; gap: 8px; justify-items: start; padding: 10px 12px; background: var(--bg); border: 1px dashed var(--line); border-radius: 8px; }
+.import-summary .cost { margin: 4px 0 8px; color: var(--text); }
+textarea.big:not(.mono) { font-size: 14px; line-height: 1.6; }
+@media (max-width: 760px) { .text-opts { grid-template-columns: 1fr 1fr; } }

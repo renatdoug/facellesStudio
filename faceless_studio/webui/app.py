@@ -52,6 +52,7 @@ class ImportRequest(BaseModel):
     text: str
     channel: Optional[str] = None
     name: Optional[str] = None
+    options: Optional[dict[str, Any]] = None  # só para roteiro em texto simples
 
 
 class EnvRequest(BaseModel):
@@ -297,7 +298,7 @@ def create_app(channels_dir, install_dir, jobs: JobManager | None = None, dist_d
     @app.post('/api/import/preview')
     def import_preview(req: ImportRequest):
         folder = channel_dir(req.channel) if req.channel else None
-        result = importer.analyze(req.text, folder)
+        result = importer.analyze(req.text, folder, req.options)
         result.pop('data', None)  # a pré-visualização devolve só o resumo e os avisos
         return result
 
@@ -306,7 +307,7 @@ def create_app(channels_dir, install_dir, jobs: JobManager | None = None, dist_d
         if not req.channel:
             raise HTTPException(422, 'Escolha o canal onde o roteiro será criado.')
         folder = channel_dir(req.channel)
-        result = importer.analyze(req.text, folder)
+        result = importer.analyze(req.text, folder, req.options)
         if not result['ok']:
             raise HTTPException(422, result['error']['message'])
         name = importer.write_new(folder, result['data'], req.name)
